@@ -1,0 +1,246 @@
+version: "2"
+
+# Strict config inherited from ~/Projects/trixi (greenfield — tight from day one).
+# Dropped relative to trixi: depguard (no architecture rules yet), loggercheck/
+# sloglint scope is moot (no logging yet) but kept enabled for when it arrives.
+
+run:
+  modules-download-mode: readonly
+  tests: true
+
+linters:
+  enable:
+    # Error handling
+    - err113
+    - errchkjson
+    - errorlint
+    - nilerr
+    - nilnesserr
+
+    # Safety
+    - bodyclose
+    - containedctx
+    - forbidigo
+    - forcetypeassert
+    - gosec
+    - noctx
+    - predeclared
+    - rowserrcheck
+    - sqlclosecheck
+
+    # Complexity
+    - cyclop
+    - funlen
+    - gocognit
+    - gocyclo
+    - nestif
+
+    # Enum & type safety
+    - exhaustive
+    - makezero
+    - musttag
+    - reassign
+
+    # Style & correctness
+    - asciicheck
+    - copyloopvar
+    - dupword
+    - durationcheck
+    - errname
+    - exptostd
+    - fatcontext
+    - gocheckcompilerdirectives
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - grouper
+    - inamedparam
+    - intrange
+    - iotamixing
+    - loggercheck
+    - misspell
+    - modernize
+    - nakedret
+    - nilnil
+    - nolintlint
+    - prealloc
+    - recvcheck
+    - revive
+    - sloglint
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+
+    # Performance
+    - mirror
+    - perfsprint
+
+    # Testing
+    - testifylint
+    - thelper
+    - usetesting
+
+  disable:
+    - godox
+    - wsl
+
+  settings:
+    exhaustive:
+      # A default clause signifies the remaining enum cases are consciously
+      # handled — required for subset switches (e.g. dialogue.Move v1 handles
+      # repair/accept and defaults the neutral + reserved-v2 cases).
+      default-signifies-exhaustive: true
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+        - fmt.Fprintf
+        - fmt.Printf
+        - fmt.Print
+        - fmt.Println
+        - fmt.Fprint
+        - fmt.Fprintln
+    goconst:
+      min-len: 4
+      min-occurrences: 5
+      ignore-tests: true
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+      # bugclasses pack (ccp-sbp, decision nug d7ea466a8172): the ruleguard
+      # checker runs the shared machine rules for the recurring cross-repo Go
+      # defect classes. Rules live in .golangci-rules/bugclasses.go — a verbatim
+      # copy of the upstream pack, drift-guarded by scripts/check-pack-drift.sh.
+      enabled-checks:
+        - ruleguard
+      settings:
+        ruleguard:
+          # ${base-path} = the .golangci.yml directory (golangci-lint v2). The
+          # glob names ONLY bugclasses.go, so rule 2 (raw-state-write, the
+          # opt-in file) stays off until ferret moves durable state to atomicfile.
+          rules: "${base-path}/.golangci-rules/bugclasses.go"
+          # Fail the run on rule-compile errors — never silently skip them.
+          failOn: dsl
+      disabled-checks:
+        - appendCombine
+        - commentFormatting
+        - deprecatedComment
+        - hugeParam
+        - ifElseChain
+        - unlambda
+    forbidigo:
+      # bugclasses rule 5: context.Background() deep in daemon code should
+      # thread the caller/shutdown ctx (strand st-47z, trixi #606,
+      # trixi-bot gg-8rq.3, canapay can-x38). Path-scoped in exclusions below
+      # to ferret's non-CLI packages. Types-aware so a `ctx.Background` field
+      # can't misfire.
+      analyze-types: true
+      forbid:
+        - pattern: '^context\.Background$'
+          msg: "thread the caller/shutdown ctx; context.Background belongs only at a daemon's root (main/startup)"
+    cyclop:
+      max-complexity: 15
+    funlen:
+      lines: 80
+      statements: 40
+    gocognit:
+      min-complexity: 15
+    gocyclo:
+      min-complexity: 15
+    nestif:
+      min-complexity: 5
+    nakedret:
+      max-func-lines: 20
+    revive:
+      severity: warning
+      rules:
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+        - name: bare-return
+          disabled: true
+        - name: var-naming
+          disabled: false
+        - name: context-as-argument
+          disabled: false
+        - name: error-return
+          disabled: false
+        - name: dot-imports
+          disabled: false
+        - name: waitgroup-by-value
+          disabled: false
+    staticcheck:
+      checks:
+        - all
+    testifylint:
+      enable-all: true
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # Test files: relax security, complexity, and context requirements
+      - linters:
+          - gosec
+        path: _test\.go
+      - linters:
+          - cyclop
+          - funlen
+          - gocognit
+          - gocyclo
+          - nestif
+        path: _test\.go
+      - linters:
+          - noctx
+        path: _test\.go
+      - linters:
+          - unparam
+        path: _test\.go
+      # cmd main.go + its extracted per-command files (ferret-3yt split): relax complexity
+      - linters:
+          - cyclop
+          - funlen
+          - gocognit
+          - gocyclo
+          - nestif
+        path: cmd/ferret/(main|ingest|summary|ngrams|seqs|rank|report|fixes_add|fixes_list|fixes_sub|fixes_subs|surprise|graph|tokens)\.go
+      - linters:
+          - cyclop
+          - funlen
+          - gocognit
+          - gocyclo
+          - nestif
+        path: cmd/gen-corpus/main\.go
+      - linters:
+          - gocritic
+        path: cmd/.*/main\.go
+        text: exitAfterDefer
+      # bugclasses rule 5 (forbidigo Background ban) is noise everywhere except
+      # long-lived daemon code. ferret is a batch CLI: context.Background is
+      # legitimate at a command's root (cmd/*) and in tests. Scoped to ferret's
+      # layout — internal/ analysis code threads the run ctx.
+      # NB: `(^|/)cmd/`, not the pack default `/cmd/` — golangci reports
+      # module-root-relative paths, so ferret's top-level command files
+      # (cmd/ferret/*.go) have no leading slash and the bare `/cmd/` alternative
+      # would miss them. ferret's CLI commands (e.g. analystContext's SIGINT
+      # root) are command-root context origins, legitimately excluded.
+      - linters:
+          - forbidigo
+        path: '(_test\.go$|(^|/)cmd/|(^|/)main\.go$)'
+        text: 'context\.Background'
+
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax

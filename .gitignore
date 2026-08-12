@@ -1,6 +1,34 @@
+.DS_Store
+/ferret
+
+# Sandbox: cache + transient artifacts (prebuilt binaries are tracked in .sandbox/bin/)
+.sandbox/cache/
+.sandbox/setup-report.json
+.sandbox/bin/**/*.tmp
+.sandbox/bin/**/*.upx
+.sandbox/bin/**/*.000
+.claude/tmp/
+# transient scratch (go-build caches et al. — must never ride git add -A into a PR)
+/.tmp/
+/tmp/
 
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db
 .beads-credential-key
 .beads/proxieddb/
+
+# snipe local index
+.snipe/
+
+# /team run ephemera (heartbeat logs)
+.team/
+ferret-kuv.5/
+ferret-bbp.5/
+ferret-bbp.7/
+ferret-bbp.8/
+ferret-7c8/
+ferret-bbp.14/
+.fo/
+ferret-wf9.1/
+ferret-j33/
