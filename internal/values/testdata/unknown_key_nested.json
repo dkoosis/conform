@@ -1,0 +1,6 @@
+{
+  "profile": "tool",
+  "exceptions": [
+    {"rule": "no-git-ops", "reason": "declared exception", "severity": "high"}
+  ]
+}

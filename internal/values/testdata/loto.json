@@ -1,0 +1,6 @@
+{
+  "profile": "tool",
+  "exceptions": [
+    {"rule": "no-git-ops", "reason": "loto never performs git operations by design; declared exception, never fix"}
+  ]
+}
