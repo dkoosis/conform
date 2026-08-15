@@ -20,6 +20,18 @@ bd hooks run "$(basename "$0")" "$@"
 
 var hookEvents = []string{"post-checkout", "post-merge", "pre-commit", "pre-push", "prepare-commit-msg"}
 
+// wrapperHook is the itzy#161 shape (cfm-wml): a tracked wrapper that
+// exec-chains to bd's shim instead of carrying the inline managed block.
+const wrapperHook = `#!/usr/bin/env sh
+hook_name="$(basename "$0")"
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+shim="$repo_root/.beads/hooks/$hook_name"
+if [ -x "$shim" ]; then
+  exec "$shim" "$@"
+fi
+exit 0
+`
+
 // localRepo returns a full shape-B hook set plus the Surface-1 files the
 // values loader needs.
 func localRepo() map[string]string {
@@ -159,12 +171,22 @@ func TestBDHooks_Violations(t *testing.T) {
 		assertOneOrClean(t, checks.CheckBDHooks(dir), checks.RuleBDHooks, "post-merge hook missing")
 	})
 
+	t.Run("delegating wrapper shape accepted", func(t *testing.T) {
+		t.Parallel()
+		files := localRepo()
+		for _, e := range hookEvents {
+			files[".githooks/"+e] = wrapperHook
+		}
+		dir := writeRepo(t, files)
+		assertOneOrClean(t, checks.CheckBDHooks(dir), checks.RuleBDHooks, "")
+	})
+
 	t.Run("no delegation block", func(t *testing.T) {
 		t.Parallel()
 		files := localRepo()
 		files[".githooks/pre-commit"] = "#!/bin/sh\nexit 0\n"
 		dir := writeRepo(t, files)
-		assertOneOrClean(t, checks.CheckBDHooks(dir), checks.RuleBDHooks, "delegation block")
+		assertOneOrClean(t, checks.CheckBDHooks(dir), checks.RuleBDHooks, "neither carries")
 	})
 }
 

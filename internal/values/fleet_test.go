@@ -52,7 +52,7 @@ func TestDefaultFleet(t *testing.T) {
 		}
 	}
 
-	const wantPublic, wantPrivate = 7, 6
+	const wantPublic, wantPrivate = 8, 6
 	if publicCount != wantPublic {
 		t.Errorf("public repo count = %d, want %d", publicCount, wantPublic)
 	}

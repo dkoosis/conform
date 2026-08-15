@@ -93,6 +93,7 @@ func goodRepo() map[string]string {
 		".sandbox/project.conf":              goodProjectConf,
 		".github/workflows/check.yml":        goodCheckYML,
 		".github/workflows/codex-review.yml": goodCodexYML,
+		".github/PULL_REQUEST_TEMPLATE.md":   "## What\n\n## Why\n",
 		".githooks/pre-commit":               "#!/bin/sh\nexit 0\n",
 		".githooks/pre-push":                 "#!/bin/sh\nexit 0\n",
 	}

@@ -33,3 +33,6 @@ func SetGHAPI(f func(ctx context.Context, path string) ([]byte, error)) func() {
 
 // ErrNotFound lets fleet tests simulate 404s.
 var ErrNotFound = errNotFound
+
+// v0.2.0 test hooks.
+var CheckPRTemplate = checkPRTemplate
