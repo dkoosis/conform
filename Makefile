@@ -29,7 +29,7 @@ help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_.-]+:.*?## / { printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@printf '\n'
 
-check: vet lint test build ## Fast validation: vet + lint + test + build
+check: vet lint test build selfcheck ## Fast validation: vet + lint + test + build + conform on itself
 	@echo "=== check pass ==="
 
 audit: check race vuln dupe nilcheck ## Exhaustive validation
@@ -50,6 +50,11 @@ race: ## Run tests with race detector (fresh run)
 
 build: ## Compile everything
 	go build ./...
+
+# Dogfood (cfm-1e1.7): conform is fleet repo #14 and gates itself, or it is
+# the unwatched watcher — the exact L4 failure it exists to kill.
+selfcheck: ## Run conform against this repo (dogfood gate)
+	go run ./cmd/conform
 
 vuln: ## Scan for known vulnerabilities
 	govulncheck ./...

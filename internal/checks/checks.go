@@ -10,7 +10,6 @@
 package checks
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -52,7 +51,7 @@ func (f Finding) String() string {
 // Run executes all Surface-1 checks against the repo rooted at dir and
 // returns the findings, with the repo's declared exceptions (conform.json)
 // filtered out. A missing or invalid values file is itself a finding.
-func Run(ctx context.Context, dir string) []Finding {
+func Run(dir string) []Finding {
 	vals, findings := loadValues(dir)
 
 	findings = append(findings, checkMakefile(dir, vals.Profile)...)
@@ -61,7 +60,7 @@ func Run(ctx context.Context, dir string) []Finding {
 	findings = append(findings, checkCIGate(dir)...)
 	findings = append(findings, checkCodexShape(dir)...)
 	findings = append(findings, checkRetiredFiles(dir)...)
-	findings = append(findings, checkBDConfig(ctx, dir)...)
+	findings = append(findings, checkBDConfig(dir)...)
 	findings = append(findings, checkHooksShape(dir)...)
 
 	findings = applyExceptions(findings, vals)

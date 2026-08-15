@@ -1,75 +1,86 @@
 package checks
 
 import (
-	"bytes"
-	"context"
 	"fmt"
-	"os/exec"
+	"os"
+	"path/filepath"
 	"strings"
-	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // The three bd config keys every fleet repo carries (ratified 2026-08-09):
 // plan_dir points dispatch audit trails at the vault, the prefix names the
 // repo's beads, and sync.remote gives bead history an off-machine recovery
 // path.
+//
+// Surface 1 reads the TRACKED declaration, .beads/config.yaml — not bd's
+// live store. The live store is an untracked embedded Dolt database: absent
+// from every fresh clone (so CI could never verify it), and reachable only
+// through a bd process (whose Dolt lock makes parallel invocations time each
+// other out — cfm-1e1.2 dead end). The tracked file is reviewable,
+// clone-derivable, and diffable in the PR that changes it. Whether the LIVE
+// bd config matches this declaration is machine state — that comparison is
+// --local's job (cfm-1e1.3), same split as hooks-shape (files here,
+// core.hooksPath there).
+const bdConfigFile = ".beads/config.yaml"
+
 var bdKeys = []struct {
-	key    string
+	key    string   // canonical name (bd config get spelling)
+	paths  []string // accepted spellings in .beads/config.yaml
 	repair string
 	why    string
 }{
 	{
 		key:    "custom.plan_dir",
-		repair: "bd config set custom.plan_dir ~/Projects/dk/Project/<repo>/plans",
+		paths:  []string{"custom.plan_dir"},
+		repair: "declare custom.plan_dir: ~/Projects/dk/Project/<repo>/plans in " + bdConfigFile + " (and bd config set to match)",
 		why:    "plans and dispatch audit trails have no derivable home",
 	},
 	{
 		key:    "issue_prefix",
-		repair: "bd init --prefix <2-3 letters> (or bd config set issue_prefix <p>)",
+		paths:  []string{"issue-prefix", "issue_prefix"},
+		repair: "declare issue-prefix: \"<2-3 letters>\" in " + bdConfigFile + " (bd init --prefix set it in the db; mirror it here)",
 		why:    "beads mint without a stable repo prefix",
 	},
 	{
 		key:    "sync.remote",
-		repair: "bd config set sync.remote git+https://github.com/<owner>/<repo>.git",
+		paths:  []string{"sync.remote"},
+		repair: "declare sync.remote: \"git+https://github.com/<owner>/<repo>.git\" in " + bdConfigFile + " (and bd config set to match)",
 		why:    "bead history is local-only, no off-machine recovery",
 	},
 }
 
-// bdTimeout bounds the single bd invocation. One `bd config list` starts one
-// bd (~0.2s); concurrent per-key gets are NOT used — parallel bd processes
-// contend on the embedded Dolt lock and time each other out.
-const bdTimeout = 900 * time.Millisecond
-
-// checkBDConfig verifies the three keys are present and non-empty
-// (bd-config). The keys live in bd's store, not in a parseable repo file, so
-// this is the one check that shells out.
-func checkBDConfig(ctx context.Context, dir string) []Finding {
-	if _, err := exec.LookPath("bd"); err != nil {
+// checkBDConfig verifies the three keys are declared non-empty in the
+// tracked bd config file (bd-config).
+func checkBDConfig(dir string) []Finding {
+	data, err := os.ReadFile(filepath.Join(dir, bdConfigFile))
+	if err != nil {
 		return []Finding{{
-			File:   ".beads",
+			File:   bdConfigFile,
 			Rule:   RuleBDConfig,
-			Msg:    "bd not on PATH — cannot verify plan_dir, prefix, or sync.remote",
-			Repair: "install beads (bd) and run bd init --prefix <p>",
+			Msg:    "no tracked bd config — plan_dir, prefix, and sync.remote are undeclared",
+			Repair: "bd init --prefix <p>, then declare the three keys in " + bdConfigFile,
 		}}
 	}
 
-	got, err := bdConfigList(ctx, dir)
-	if err != nil {
+	var doc map[string]any
+	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return []Finding{{
-			File:   ".beads",
+			File:   bdConfigFile,
 			Rule:   RuleBDConfig,
-			Msg:    fmt.Sprintf("bd config list failed (%v) — no beads workspace here, or bd cannot open it", err),
-			Repair: "bd init --prefix <p>, then set custom.plan_dir and sync.remote",
+			Msg:    fmt.Sprintf("unparseable YAML: %v", err),
+			Repair: "fix the YAML",
 		}}
 	}
 
 	var findings []Finding
 	for _, k := range bdKeys {
-		if got[k.key] == "" {
+		if lookupAny(doc, k.paths) == "" {
 			findings = append(findings, Finding{
-				File:   ".beads",
+				File:   bdConfigFile,
 				Rule:   RuleBDConfig,
-				Msg:    fmt.Sprintf("bd config %s is unset — %s", k.key, k.why),
+				Msg:    fmt.Sprintf("%s is undeclared — %s", k.key, k.why),
 				Repair: k.repair,
 			})
 		}
@@ -77,25 +88,31 @@ func checkBDConfig(ctx context.Context, dir string) []Finding {
 	return findings
 }
 
-// bdConfigList runs one `bd config list` and parses its "key = value" lines.
-func bdConfigList(ctx context.Context, dir string) (map[string]string, error) {
-	ctx, cancel := context.WithTimeout(ctx, bdTimeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "bd", "config", "list")
-	cmd.Dir = dir
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
-	if err := cmd.Run(); err != nil {
-		return nil, err
-	}
-
-	values := make(map[string]string)
-	for line := range strings.SplitSeq(stdout.String(), "\n") {
-		key, val, ok := strings.Cut(line, "=")
-		if !ok {
-			continue
+// lookupAny returns the first non-empty string value found at any of the
+// dotted paths. Each path is tried both as a literal flat key
+// ("sync.remote":) and as a nested mapping (sync: → remote:) — both shapes
+// exist in the fleet.
+func lookupAny(doc map[string]any, paths []string) string {
+	for _, path := range paths {
+		if s, ok := doc[path].(string); ok && s != "" {
+			return s
 		}
-		values[strings.TrimSpace(key)] = strings.TrimSpace(val)
+		if s := lookupNested(doc, strings.Split(path, ".")); s != "" {
+			return s
+		}
 	}
-	return values, nil
+	return ""
+}
+
+func lookupNested(doc map[string]any, parts []string) string {
+	cur := any(doc)
+	for _, part := range parts {
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return ""
+		}
+		cur = m[part]
+	}
+	s, _ := cur.(string)
+	return s
 }
