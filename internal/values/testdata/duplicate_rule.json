@@ -1,0 +1,7 @@
+{
+  "profile": "tool",
+  "exceptions": [
+    {"rule": "no-git-ops", "reason": "first declaration"},
+    {"rule": "no-git-ops", "reason": "second declaration"}
+  ]
+}
