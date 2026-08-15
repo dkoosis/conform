@@ -1,18 +1,20 @@
 version: "2"
 
-# Strict config inherited from ~/Projects/trixi (greenfield — tight from day one).
-# Dropped relative to trixi: depguard (no architecture rules yet), loggercheck/
-# sloglint scope is moot (no logging yet) but kept enabled for when it arrives.
+# Ported from trixi 2026-06-11 (canapay-3hb). Trixi-specific depguard
+# architecture rules and path exclusions dropped; add canapay depguard rules
+# when package boundaries are worth enforcing.
 
 run:
   modules-download-mode: readonly
   tests: true
 
 linters:
-  # bugclasses baseline floor (ccp-sbp.2, decision nug d7ea466a8172). `standard`
-  # keeps golangci's own defaults (errcheck, govet, ineffassign, staticcheck,
-  # unused) under this repo's richer config, so the floor is never below the six
-  # shared linters. contextcheck is deliberately NOT enabled — advisory only.
+  # bugclasses baseline floor (ccp-sbp.2, decision nug d7ea466a8172):
+  # `standard` keeps golangci's own defaults (errcheck, govet, ineffassign,
+  # staticcheck, unused) under canapay's richer config, so the shared floor is
+  # never below errcheck/nilerr/rowserrcheck/noctx/staticcheck/nolintlint.
+  # contextcheck is deliberately NOT enabled — advisory only (FP-dominated);
+  # that defect class is owned by forbidigo rule 5 below.
   default: standard
   enable:
     # Error handling
@@ -21,6 +23,7 @@ linters:
     - errorlint
     - nilerr
     - nilnesserr
+    - wrapcheck
 
     # Safety
     - bodyclose
@@ -68,11 +71,11 @@ linters:
     - nakedret
     - nilnil
     - nolintlint
-    - staticcheck    # baseline floor: a golangci default, named explicitly
     - prealloc
     - recvcheck
     - revive
     - sloglint
+    - staticcheck # a golangci default; named explicitly per the baseline floor
     - unconvert
     - unparam
     - usestdlibvars
@@ -92,11 +95,6 @@ linters:
     - wsl
 
   settings:
-    exhaustive:
-      # A default clause signifies the remaining enum cases are consciously
-      # handled — required for subset switches (e.g. dialogue.Move v1 handles
-      # repair/accept and defaults the neutral + reserved-v2 cases).
-      default-signifies-exhaustive: true
     errcheck:
       exclude-functions:
         - (io.Closer).Close
@@ -118,14 +116,16 @@ linters:
       # bugclasses pack (ccp-sbp, decision nug d7ea466a8172): the ruleguard
       # checker runs the shared machine rules for the recurring cross-repo Go
       # defect classes. Rules live in .golangci-rules/bugclasses.go — a verbatim
-      # copy of the upstream pack, drift-guarded by scripts/check-pack-drift.sh.
+      # copy of the upstream cc-plugins pack, drift-guarded by
+      # scripts/check-pack-drift.sh.
       enabled-checks:
         - ruleguard
       settings:
         ruleguard:
           # ${base-path} = the .golangci.yml directory (golangci-lint v2). The
           # glob names ONLY bugclasses.go, so rule 2 (raw-state-write, the
-          # opt-in file) stays off until ferret moves durable state to atomicfile.
+          # opt-in file) stays off until canapay moves durable state to
+          # atomicfile.
           rules: "${base-path}/.golangci-rules/bugclasses.go"
           # Fail the run on rule-compile errors — never silently skip them.
           failOn: dsl
@@ -137,15 +137,16 @@ linters:
         - ifElseChain
         - unlambda
     forbidigo:
-      # bugclasses rule 5: context.Background() deep in daemon code should
-      # thread the caller/shutdown ctx (strand st-47z, trixi #606,
-      # trixi-bot gg-8rq.3, canapay can-x38). Path-scoped in exclusions below
-      # to ferret's non-CLI packages. Types-aware so a `ctx.Background` field
-      # can't misfire.
+      # bugclasses rule 5: context.Background() deep in daemon/server code
+      # should thread the caller/shutdown ctx (strand st-47z, trixi #606,
+      # trixi-bot gg-8rq.3, canapay can-x38 — the MCP-server variant, now
+      # fixed). Path-scoped in exclusions below to canapay's daemon/network
+      # surface. Types-aware so a `ctx.Background` field can't misfire.
       analyze-types: true
       forbid:
         - pattern: '^context\.Background$'
           msg: "thread the caller/shutdown ctx; context.Background belongs only at a daemon's root (main/startup)"
+    # Greenfield — tight from day one
     cyclop:
       max-complexity: 15
     funlen:
@@ -212,37 +213,37 @@ linters:
       - linters:
           - unparam
         path: _test\.go
-      # cmd main.go + its extracted per-command files (ferret-3yt split): relax complexity
+      # wrapcheck: test files wrap nothing meaningful — boundary wrapping is a
+      # production-code concern (trixi-u6q)
+      - linters:
+          - wrapcheck
+        path: _test\.go
+      # root main.go: relax complexity
       - linters:
           - cyclop
           - funlen
           - gocognit
           - gocyclo
           - nestif
-        path: cmd/ferret/(main|ingest|summary|ngrams|seqs|rank|report|fixes_add|fixes_list|fixes_sub|fixes_subs|surprise|graph|tokens)\.go
-      - linters:
-          - cyclop
-          - funlen
-          - gocognit
-          - gocyclo
-          - nestif
-        path: cmd/gen-corpus/main\.go
-      - linters:
-          - gocritic
-        path: cmd/.*/main\.go
-        text: exitAfterDefer
+        path: main\.go
       # bugclasses rule 5 (forbidigo Background ban) is noise everywhere except
-      # long-lived daemon code. ferret is a batch CLI: context.Background is
-      # legitimate at a command's root (cmd/*) and in tests. Scoped to ferret's
-      # layout — internal/ analysis code threads the run ctx.
-      # NB: `(^|/)cmd/`, not the pack default `/cmd/` — golangci reports
-      # module-root-relative paths, so ferret's top-level command files
-      # (cmd/ferret/*.go) have no leading slash and the bare `/cmd/` alternative
-      # would miss them. ferret's CLI commands (e.g. analystContext's SIGINT
-      # root) are command-root context origins, legitimately excluded.
+      # long-lived daemon/server code. Scoped OUT for canapay's non-daemon
+      # surface, where a fresh root context is legitimate:
+      #   - _test.go / root main.go — roots and fixtures.
+      #   - internal/cli/** — kong subcommand handlers; each roots its own
+      #     top-level timeout ctx (the moral equivalent of a per-command main),
+      #     incl. the MCP-server root at internal/cli/mcp.go (signal.NotifyContext
+      #     — the fixed form of can-x38).
+      #   - internal/state/** — the synchronous SQLite data-access library. Its
+      #     public methods root their own operation ctx by design (they take no
+      #     caller ctx to sever); tx-level helpers thread ctx internally. Not the
+      #     daemon-cancellation defect rule 5 targets — threading ctx through the
+      #     ledger API is a separate worklist, out of scope for a lint adoption.
+      # Left IN scope: notify/qbo/transport/supplier/runlog — network + daemon
+      # paths. The two current sites there carry a site-specific //nolint.
       - linters:
           - forbidigo
-        path: '(_test\.go$|(^|/)cmd/|(^|/)main\.go$)'
+        path: '(_test\.go$|(^|/)main\.go$|(^|/)internal/cli/|(^|/)internal/state/)'
         text: 'context\.Background'
 
 formatters:

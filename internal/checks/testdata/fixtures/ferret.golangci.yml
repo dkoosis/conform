@@ -68,11 +68,11 @@ linters:
     - nakedret
     - nilnil
     - nolintlint
-    - staticcheck    # baseline floor: a golangci default, named explicitly
     - prealloc
     - recvcheck
     - revive
     - sloglint
+    - staticcheck    # baseline floor: a golangci default, named explicitly
     - unconvert
     - unparam
     - usestdlibvars

@@ -1,0 +1,323 @@
+version: "2"
+
+run:
+  modules-download-mode: readonly
+  tests: true
+
+linters:
+  # bugclasses baseline floor (ccp-sbp.2, decision nug d7ea466a8172): keep
+  # golangci's own defaults (errcheck, govet, ineffassign, staticcheck, unused)
+  # under everything itzy adds, so the floor is never below the shared minimum.
+  default: standard
+
+  enable:
+    # Error handling
+    - errorlint
+    - nilerr
+    - nilnesserr
+
+    # Safety
+    - bodyclose
+    - containedctx
+    - forcetypeassert
+    - forbidigo
+    - gosec
+    - noctx
+    - predeclared
+    # Baseline floor: a default, but the floor names it explicitly.
+    - staticcheck
+    # Baseline floor: no-op without a database/sql import — cheap to carry.
+    - rowserrcheck
+
+    # Architecture — depguard encodes the module DAG verbatim (armed with the
+    # tracer, iz-88l.2). Import DAG (docs/ARCHITECTURE.md): channel/cmd →
+    # dispatch → agent → {prompt, llm, tools, log, memory} → domain. Layer drift
+    # now fails the build instead of the honor system.
+    - depguard
+
+    # Complexity
+    - cyclop
+    - funlen
+    - gocognit
+    - gocyclo
+    - nestif
+
+    # Style & correctness
+    - asciicheck
+    - copyloopvar
+    - dupword
+    - durationcheck
+    - errname
+    - fatcontext
+    - gocheckcompilerdirectives
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - inamedparam
+    - intrange
+    - loggercheck
+    - misspell
+    - nakedret
+    - nilnil
+    - nolintlint
+    - prealloc
+    - reassign
+    - recvcheck
+    - revive
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+
+    # Performance
+    - perfsprint
+
+    # Testing
+    - thelper
+    - usetesting
+
+  settings:
+    depguard:
+      rules:
+        domain:
+          files: ["**/internal/domain/**"]
+          allow: ["$gostd"]
+        leaves:
+          files:
+            - "**/internal/prompt/**"
+            - "**/internal/llm/**"
+            - "**/internal/tools/**"
+            - "**/internal/log/**"
+            - "**/internal/memory/**"
+            - "!**/*_test.go"
+          allow:
+            - "$gostd"
+            - "github.com/dkoosis/itzy/internal/domain"
+        leaves-external-test:
+          # Black-box tests (package foo_test) live inside the leaf dir but
+          # import the leaf itself to exercise its public API only.
+          files:
+            - "**/internal/prompt/**/*_test.go"
+            - "**/internal/llm/**/*_test.go"
+            - "**/internal/tools/**/*_test.go"
+            - "**/internal/log/**/*_test.go"
+            - "**/internal/memory/**/*_test.go"
+          allow:
+            - "$gostd"
+            - "github.com/dkoosis/itzy/internal/domain"
+            - "github.com/dkoosis/itzy/internal/prompt"
+            - "github.com/dkoosis/itzy/internal/llm"
+            - "github.com/dkoosis/itzy/internal/tools"
+            - "github.com/dkoosis/itzy/internal/log"
+            - "github.com/dkoosis/itzy/internal/memory"
+        agent:
+          files: ["**/internal/agent/**"]
+          allow:
+            - "$gostd"
+            - "github.com/dkoosis/itzy/internal/domain"
+            - "github.com/dkoosis/itzy/internal/prompt"
+            - "github.com/dkoosis/itzy/internal/llm"
+            - "github.com/dkoosis/itzy/internal/tools"
+            - "github.com/dkoosis/itzy/internal/log"
+            - "github.com/dkoosis/itzy/internal/memory"
+        dispatch:
+          files: ["**/internal/dispatch/**"]
+          allow:
+            # dispatch depends on a Runner port (interface over domain), not on
+            # agent — agent is injected by cmd. The run edge points in, not out.
+            - "$gostd"
+            - "github.com/dkoosis/itzy/internal/domain"
+        command:
+          # Control-plane registry (ADR-0013): a lookup + scope gate over pure
+          # handler funcs. Imports only domain (in practice nothing beyond
+          # stdlib). Forbidding dispatch/log/memory/llm/agent makes the
+          # control-plane/data-plane split mechanical — a command can never
+          # become a run.
+          files: ["**/internal/command/**"]
+          allow:
+            - "$gostd"
+            - "github.com/dkoosis/itzy/internal/domain"
+        channel:
+          files: ["**/internal/channel/**"]
+          allow:
+            - "$gostd"
+            - "github.com/dkoosis/itzy/internal/domain"
+            - "github.com/dkoosis/itzy/internal/dispatch"
+            - "github.com/dkoosis/itzy/internal/command"
+        server:
+          files: ["**/internal/server/**"]
+          allow:
+            - "$gostd"
+            - "github.com/dkoosis/itzy/internal/domain"
+            - "github.com/dkoosis/itzy/internal/dispatch"
+        witness:
+          # The command dedupe witness (ADR-0014, iz-805): a durable set of
+          # witnessed delivery IDs, backing internal/command's DeliveryWitness
+          # port. Stdlib-only — it knows nothing about commands or channels.
+          # One deliberate exception: dkoosis/atomicfile (ccp-sbp.5), the
+          # fleet's shared crash-safe write primitive replacing a hand-rolled
+          # temp+fsync+rename helper — durability, not a domain dependency.
+          files: ["**/internal/witness/**"]
+          allow: ["$gostd", "github.com/dkoosis/atomicfile"]
+        eval:
+          # The memory dyno (docs/ARCHITECTURE.md §Eval rig): a test bench,
+          # imports internal like a second cmd; nothing imports it back.
+          files: ["**/eval/**"]
+          allow:
+            - "$gostd"
+            - "github.com/dkoosis/itzy/eval"
+            - "github.com/dkoosis/itzy/internal/domain"
+            - "github.com/dkoosis/itzy/internal/memory"
+            - "github.com/dkoosis/itzy/internal/agent"
+            - "github.com/dkoosis/itzy/internal/llm"
+            - "github.com/dkoosis/itzy/internal/log"
+            - "github.com/dkoosis/itzy/internal/tools"
+            - "github.com/dkoosis/atomicfile" # crash-safe durable writes (ccp-sbp.5)
+        cmd:
+          files: ["**/cmd/**", "!**/eval/cmd/**"]
+          allow:
+            - "$gostd"
+            - "github.com/dkoosis/keyring" # composition root owns credential retrieval
+            - "github.com/dkoosis/itzy/internal/domain"
+            - "github.com/dkoosis/itzy/internal/log"
+            - "github.com/dkoosis/itzy/internal/memory"
+            - "github.com/dkoosis/itzy/internal/tools"
+            - "github.com/dkoosis/itzy/internal/llm"
+            - "github.com/dkoosis/itzy/internal/prompt"
+            - "github.com/dkoosis/itzy/internal/agent"
+            - "github.com/dkoosis/itzy/internal/dispatch"
+            - "github.com/dkoosis/itzy/internal/server"
+            - "github.com/dkoosis/itzy/internal/channel"
+            - "github.com/dkoosis/itzy/internal/command"
+            - "github.com/dkoosis/itzy/internal/witness" # command dedupe witness store (ADR-0014, iz-805)
+            - "github.com/dkoosis/itzy/internal/approvals" # proposal store; cmd resolves ITZY_PROPOSALS_PATH and injects it (iz-avl.4.1)
+    errcheck:
+      # STRICT — only calls whose dropped error is genuinely fine. Never a
+      # path/package blanket. Baseline-floor minimum plus itzy's own entries.
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Print
+        - fmt.Printf
+        - fmt.Println
+    goconst:
+      min-len: 4
+      min-occurrences: 5
+      ignore-tests: true
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+      # bugclasses pack (ccp-sbp, decision nug d7ea466a8172): the ruleguard
+      # checker runs the shared machine rules for the recurring cross-repo Go
+      # defect classes. Rules live in .golangci-rules/bugclasses.go — a verbatim
+      # copy of the upstream pack, drift-guarded by scripts/check-pack-drift.sh.
+      enabled-checks:
+        - ruleguard
+      settings:
+        ruleguard:
+          # ${base-path} = the .golangci.yml directory (golangci-lint v2). The
+          # glob covers every .golangci-rules/*.go — rule 2 (raw-state-write,
+          # optin_rawstatewrite.go) is ON: itzy adopted atomicfile (ccp-sbp.5,
+          # PR #155) and flipped it on with a _test.go exclusion (iz-tqk).
+          rules: "${base-path}/.golangci-rules/*.go"
+          # Fail the run on rule-compile errors — never silently skip them.
+          failOn: dsl
+      disabled-checks:
+        - commentFormatting
+        - ifElseChain
+        # The ratified loop contracts pass domain value types by value on
+        # purpose: Message is the stored shape carried across every boundary,
+        # AdmittedRun/RunRequest model admission, and Assemble is a pure
+        # function. Value semantics are the design, not an oversight
+        # (loop-contracts.md). hugeParam would fight the contract.
+        - hugeParam
+    forbidigo:
+      # bugclasses rule 5: context.Background() deep in daemon code should
+      # thread the caller/shutdown ctx (strand st-47z, trixi #606,
+      # trixi-bot gg-8rq.3, canapay can-x38). Path-scoped below to itzy's
+      # daemon packages. Types-aware so a `ctx.Background` field can't misfire.
+      analyze-types: true
+      forbid:
+        - pattern: '^context\.Background$'
+          msg: "thread the caller/shutdown ctx; context.Background belongs only at a daemon's root (main/startup)"
+    cyclop:
+      max-complexity: 20
+    funlen:
+      lines: 100
+      statements: 65
+    gocognit:
+      min-complexity: 25
+    gocyclo:
+      min-complexity: 20
+    nestif:
+      min-complexity: 6
+    nakedret:
+      max-func-lines: 20
+    revive:
+      severity: warning
+      rules:
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+        - name: var-naming
+          disabled: false
+        - name: context-as-argument
+          disabled: false
+        - name: error-return
+          disabled: false
+        - name: dot-imports
+          disabled: false
+    staticcheck:
+      checks:
+        - all
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # Test files: relax security, complexity, context.
+      - linters:
+          - gosec
+          - cyclop
+          - funlen
+          - gocognit
+          - gocyclo
+          - nestif
+          - noctx
+          - unparam
+          - forcetypeassert
+        path: _test\.go
+      # cmd main.go: relax complexity — wiring, not logic.
+      - linters:
+          - cyclop
+          - funlen
+          - gocognit
+          - gocyclo
+          - nestif
+        path: cmd/.*/main\.go
+      # bugclasses rule 5 (forbidigo Background ban) is noise everywhere except
+      # long-lived daemon packages. context.Background is legitimate at itzy's
+      # root (cmd/itzy startup) and in tests. internal/ daemon code threads the
+      # run/shutdown ctx.
+      - linters:
+          - forbidigo
+        path: '(_test\.go$|/cmd/|(^|/)main\.go$)'
+        text: 'context\.Background'
+
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
