@@ -54,18 +54,16 @@ var bdKeys = []struct {
 // checkBDConfig verifies the three keys are declared non-empty in the
 // tracked bd config file (bd-config).
 func checkBDConfig(dir string) []Finding {
-	data, err := os.ReadFile(filepath.Join(dir, bdConfigFile))
+	doc, err := readBDConfig(dir)
 	if err != nil {
-		return []Finding{{
-			File:   bdConfigFile,
-			Rule:   RuleBDConfig,
-			Msg:    "no tracked bd config — plan_dir, prefix, and sync.remote are undeclared",
-			Repair: "bd init --prefix <p>, then declare the three keys in " + bdConfigFile,
-		}}
-	}
-
-	var doc map[string]any
-	if err := yaml.Unmarshal(data, &doc); err != nil {
+		if os.IsNotExist(err) {
+			return []Finding{{
+				File:   bdConfigFile,
+				Rule:   RuleBDConfig,
+				Msg:    "no tracked bd config — plan_dir, prefix, and sync.remote are undeclared",
+				Repair: "bd init --prefix <p>, then declare the three keys in " + bdConfigFile,
+			}}
+		}
 		return []Finding{{
 			File:   bdConfigFile,
 			Rule:   RuleBDConfig,
@@ -86,6 +84,33 @@ func checkBDConfig(dir string) []Finding {
 		}
 	}
 	return findings
+}
+
+// readBDConfig loads and parses the tracked bd config file.
+func readBDConfig(dir string) (map[string]any, error) {
+	data, err := os.ReadFile(filepath.Join(dir, bdConfigFile))
+	if err != nil {
+		return nil, err
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, err
+	}
+	return doc, nil
+}
+
+// declaredBDConfig returns the declared values by canonical key name; empty
+// map when the file is missing or unparseable (Surface 1 owns that finding).
+func declaredBDConfig(dir string) map[string]string {
+	declared := make(map[string]string, len(bdKeys))
+	doc, err := readBDConfig(dir)
+	if err != nil {
+		return declared
+	}
+	for _, k := range bdKeys {
+		declared[k.key] = lookupAny(doc, k.paths)
+	}
+	return declared
 }
 
 // lookupAny returns the first non-empty string value found at any of the

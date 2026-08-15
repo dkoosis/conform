@@ -11,6 +11,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -52,7 +53,7 @@ func run(args []string) error {
 			return fmt.Errorf("%w: unknown argument %q", errUsage, args[0])
 		}
 	}
-	if mode != "check" {
+	if mode == "fleet" {
 		return fmt.Errorf("surface %q: %w", mode, errNotImplemented)
 	}
 
@@ -60,7 +61,12 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	findings := checks.Run(dir)
+	var findings []checks.Finding
+	if mode == "local" {
+		findings = checks.RunLocal(context.Background(), dir)
+	} else {
+		findings = checks.Run(dir)
+	}
 	if len(findings) == 0 {
 		fmt.Println("conform: ok")
 		return nil

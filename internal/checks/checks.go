@@ -109,6 +109,14 @@ func applyExceptions(findings []Finding, vals values.Values) []Finding {
 	excepted := make(map[string]bool, len(vals.Exceptions))
 	for _, e := range vals.Exceptions {
 		excepted[e.Rule] = true
+		if e.Rule == RuleNoGitOps {
+			// One word excepts the whole git-hook family (loto: a repo that
+			// performs no git operations by design has no hook chain to keep
+			// alive).
+			for _, r := range noGitOpsFamily {
+				excepted[r] = true
+			}
+		}
 	}
 	kept := findings[:0]
 	for _, f := range findings {
