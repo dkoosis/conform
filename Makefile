@@ -56,6 +56,13 @@ build: ## Compile everything
 selfcheck: ## Run conform against this repo (dogfood gate)
 	go run ./cmd/conform
 
+# doctor's core steps come from .sandbox/lib/Makefile.doctor.mk (shared,
+# byte-identical fleet-wide); wiring conform --local in as an extra prereq
+# keeps the lib untouched (cfm-1e1.3).
+doctor: selfcheck-local ## Machine doctor (sandbox lib) + conform --local
+selfcheck-local: ## Run conform --local (machine wiring: hooksPath, bd hooks, live bd config)
+	go run ./cmd/conform --local
+
 vuln: ## Scan for known vulnerabilities
 	govulncheck ./...
 

@@ -13,3 +13,11 @@ var (
 	CheckBDConfig     = checkBDConfig
 	CheckHooksShape   = checkHooksShape
 )
+
+// Surface-2 test hooks.
+var (
+	CheckHooksPathFn = checkHooksPath
+	CheckBDHooks     = checkBDHooks
+	CheckReviewGate  = checkReviewGate
+	CheckBDLive      = checkBDLive
+)
