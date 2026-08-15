@@ -19,10 +19,6 @@ import (
 	"github.com/dkoosis/conform/internal/checks"
 )
 
-// errNotImplemented marks surfaces that exist in the contract but not yet in
-// code (cfm-1e1.3, cfm-1e1.4).
-var errNotImplemented = errors.New("not implemented yet")
-
 // errUsage marks a bad invocation; usage has already been printed.
 var errUsage = errors.New("bad usage")
 
@@ -53,18 +49,20 @@ func run(args []string) error {
 			return fmt.Errorf("%w: unknown argument %q", errUsage, args[0])
 		}
 	}
-	if mode == "fleet" {
-		return fmt.Errorf("surface %q: %w", mode, errNotImplemented)
-	}
-
 	dir, err := os.Getwd()
 	if err != nil {
 		return err
 	}
 	var findings []checks.Finding
-	if mode == "local" {
+	switch mode {
+	case "local":
 		findings = checks.RunLocal(context.Background(), dir)
-	} else {
+	case "fleet":
+		findings, err = checks.RunFleet(context.Background())
+		if err != nil {
+			return err
+		}
+	default:
 		findings = checks.Run(dir)
 	}
 	if len(findings) == 0 {
