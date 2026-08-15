@@ -11,21 +11,30 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+
+	"github.com/dkoosis/conform/internal/checks"
 )
 
 // errNotImplemented marks surfaces that exist in the contract but not yet in
-// code (cfm-1e1.2..4).
+// code (cfm-1e1.3, cfm-1e1.4).
 var errNotImplemented = errors.New("not implemented yet")
 
 // errUsage marks a bad invocation; usage has already been printed.
 var errUsage = errors.New("bad usage")
 
+// errFindings marks a completed run that found contract violations — the
+// hard-fail exit, distinct from conform itself breaking.
+var errFindings = errors.New("contract violations")
+
 func main() {
 	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, "conform:", err)
+		if !errors.Is(err, errFindings) {
+			fmt.Fprintln(os.Stderr, "conform:", err)
+		}
 		os.Exit(1)
 	}
 }
@@ -44,7 +53,24 @@ func run(args []string) error {
 			return fmt.Errorf("%w: unknown argument %q", errUsage, args[0])
 		}
 	}
-	return fmt.Errorf("surface %q: %w", mode, errNotImplemented)
+	if mode != "check" {
+		return fmt.Errorf("surface %q: %w", mode, errNotImplemented)
+	}
+
+	dir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	findings := checks.Run(context.Background(), dir)
+	if len(findings) == 0 {
+		fmt.Println("conform: ok")
+		return nil
+	}
+	for _, f := range findings {
+		fmt.Println(f)
+	}
+	fmt.Printf("conform: %d finding(s)\n", len(findings))
+	return errFindings
 }
 
 func usage() {
