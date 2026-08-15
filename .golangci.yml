@@ -15,6 +15,7 @@ linters:
   # shared linters. contextcheck is deliberately NOT enabled — advisory only.
   default: standard
   enable:
+    - contextcheck  # DELIBERATE VIOLATION — break-a-rule proof, do not merge
     # Error handling
     - err113
     - errchkjson
