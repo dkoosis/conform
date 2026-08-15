@@ -1,7 +1,6 @@
 package checks_test
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -9,12 +8,13 @@ import (
 )
 
 // TestRun_ConformingRepo: a repo satisfying the whole Surface-1 contract
-// produces zero findings. (Uses t.Setenv via fakeBD — not parallel.)
+// produces zero findings.
 func TestRun_ConformingRepo(t *testing.T) {
-	fakeBD(t, "/vault/plans", "cfm", "git+https://github.com/x/y.git")
+	t.Parallel()
+
 	dir := writeRepo(t, goodRepo())
 
-	findings := checks.Run(context.Background(), dir)
+	findings := checks.Run(dir)
 	if len(findings) != 0 {
 		t.Fatalf("Run() on a conforming repo returned %d finding(s):\n%v", len(findings), findings)
 	}
@@ -23,12 +23,11 @@ func TestRun_ConformingRepo(t *testing.T) {
 // TestRun_MissingValuesFile: no conform.json is itself a finding, and the
 // remaining checks still run under the default tool profile.
 func TestRun_MissingValuesFile(t *testing.T) {
-	fakeBD(t, "/vault/plans", "cfm", "git+https://github.com/x/y.git")
 	files := goodRepo()
 	delete(files, "conform.json")
 	dir := writeRepo(t, files)
 
-	findings := checks.Run(context.Background(), dir)
+	findings := checks.Run(dir)
 	rules := rulesOf(findings)
 	if rules[checks.RuleValuesFile] != 1 {
 		t.Fatalf("want exactly one %s finding, got rules %v", checks.RuleValuesFile, rules)
@@ -41,12 +40,11 @@ func TestRun_MissingValuesFile(t *testing.T) {
 // TestRun_InvalidValuesFile: the finding carries the values package's
 // path-and-field error text.
 func TestRun_InvalidValuesFile(t *testing.T) {
-	fakeBD(t, "/vault/plans", "cfm", "git+https://github.com/x/y.git")
 	files := goodRepo()
 	files["conform.json"] = `{"profile": "tool", "exceptions": [{"rule": "x"}]}`
 	dir := writeRepo(t, files)
 
-	findings := checks.Run(context.Background(), dir)
+	findings := checks.Run(dir)
 	var msg string
 	for _, f := range findings {
 		if f.Rule == checks.RuleValuesFile {
@@ -66,7 +64,6 @@ func TestRun_InvalidValuesFile(t *testing.T) {
 // TestRun_ExceptionSuppressesFinding: a declared, reasoned exception is the
 // one sanctioned suppression.
 func TestRun_ExceptionSuppressesFinding(t *testing.T) {
-	fakeBD(t, "/vault/plans", "cfm", "git+https://github.com/x/y.git")
 	files := goodRepo()
 	// Break the codex shape…
 	files[".github/workflows/codex-review.yml"] = strings.Replace(
@@ -76,7 +73,7 @@ func TestRun_ExceptionSuppressesFinding(t *testing.T) {
 		{"rule": "codex-workflow", "reason": "this repo pays for auto-review deliberately"}]}`
 	dir := writeRepo(t, files)
 
-	findings := checks.Run(context.Background(), dir)
+	findings := checks.Run(dir)
 	if n := rulesOf(findings)[checks.RuleCodexShape]; n != 0 {
 		t.Errorf("excepted rule still produced %d finding(s): %v", n, findings)
 	}
@@ -84,7 +81,7 @@ func TestRun_ExceptionSuppressesFinding(t *testing.T) {
 	// Same break without the exception must fail.
 	files["conform.json"] = goodValues
 	dir = writeRepo(t, files)
-	if n := rulesOf(checks.Run(context.Background(), dir))[checks.RuleCodexShape]; n == 0 {
+	if n := rulesOf(checks.Run(dir))[checks.RuleCodexShape]; n == 0 {
 		t.Error("codex-workflow break produced no finding without the exception")
 	}
 }
@@ -92,20 +89,19 @@ func TestRun_ExceptionSuppressesFinding(t *testing.T) {
 // TestRun_LibProfile: libs are the contract minus deploy — a deploy verb is
 // a finding, its absence is not.
 func TestRun_LibProfile(t *testing.T) {
-	fakeBD(t, "/vault/plans", "afl", "git+https://github.com/x/y.git")
 	files := goodRepo()
 	files["conform.json"] = `{"profile": "lib", "exceptions": []}`
 
 	// Lib with deploy: finding.
 	dir := writeRepo(t, files)
-	if n := rulesOf(checks.Run(context.Background(), dir))[checks.RuleMakefileVerb]; n == 0 {
+	if n := rulesOf(checks.Run(dir))[checks.RuleMakefileVerb]; n == 0 {
 		t.Error("lib profile with a deploy verb produced no makefile-verbs finding")
 	}
 
 	// Lib without deploy: clean.
 	files["Makefile"] = strings.Replace(goodMakefile, "deploy: build ## Install locally\n", "", 1)
 	dir = writeRepo(t, files)
-	if findings := checks.Run(context.Background(), dir); len(findings) != 0 {
+	if findings := checks.Run(dir); len(findings) != 0 {
 		t.Errorf("deploy-less lib should be clean, got %v", findings)
 	}
 }

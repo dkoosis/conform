@@ -11,7 +11,6 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -61,7 +60,7 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	findings := checks.Run(context.Background(), dir)
+	findings := checks.Run(dir)
 	if len(findings) == 0 {
 		fmt.Println("conform: ok")
 		return nil

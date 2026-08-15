@@ -1,7 +1,6 @@
 package checks_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -116,23 +115,52 @@ func TestHooksShape_NotExecutable(t *testing.T) {
 	assertOneOrClean(t, checks.CheckHooksShape(dir), checks.RuleHooksShape, "not executable")
 }
 
-// TestBDConfig covers the shelled check via a stubbed bd (not parallel:
-// fakeBD uses t.Setenv).
+// TestBDConfig covers the tracked-declaration check: Surface 1 reads
+// .beads/config.yaml, never bd's live (untracked, clone-absent) store.
 func TestBDConfig(t *testing.T) {
-	dir := writeRepo(t, map[string]string{})
+	t.Parallel()
 
-	t.Run("all keys set", func(t *testing.T) {
-		fakeBD(t, "/vault/plans", "cfm", "git+https://github.com/x/y.git")
-		assertOneOrClean(t, checks.CheckBDConfig(context.Background(), dir), checks.RuleBDConfig, "")
-	})
+	tests := []struct {
+		name    string
+		files   map[string]string
+		wantMsg string
+	}{
+		{
+			name:  "all three declared (nested + flat shapes)",
+			files: map[string]string{".beads/config.yaml": goodBDConfig},
+		},
+		{
+			name:  "all three declared, flat sync.remote shape",
+			files: map[string]string{".beads/config.yaml": "issue_prefix: cfm\ncustom.plan_dir: /vault/plans\nsync.remote: \"git+https://github.com/x/y.git\"\n"},
+		},
+		{
+			name:    "no tracked bd config at all",
+			files:   map[string]string{},
+			wantMsg: "no tracked bd config",
+		},
+		{
+			name:    "sync.remote undeclared",
+			files:   map[string]string{".beads/config.yaml": "issue-prefix: cfm\ncustom.plan_dir: /vault/plans\n"},
+			wantMsg: "sync.remote is undeclared",
+		},
+		{
+			name:    "plan_dir undeclared",
+			files:   map[string]string{".beads/config.yaml": "issue-prefix: cfm\nsync.remote: x\n"},
+			wantMsg: "custom.plan_dir is undeclared",
+		},
+		{
+			name:    "unparseable yaml",
+			files:   map[string]string{".beads/config.yaml": "sync: [broken"},
+			wantMsg: "unparseable",
+		},
+	}
 
-	t.Run("sync.remote unset", func(t *testing.T) {
-		fakeBD(t, "/vault/plans", "cfm", "")
-		assertOneOrClean(t, checks.CheckBDConfig(context.Background(), dir), checks.RuleBDConfig, "sync.remote is unset")
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("bd not on PATH", func(t *testing.T) {
-		t.Setenv("PATH", t.TempDir())
-		assertOneOrClean(t, checks.CheckBDConfig(context.Background(), dir), checks.RuleBDConfig, "bd not on PATH")
-	})
+			dir := writeRepo(t, tt.files)
+			assertOneOrClean(t, checks.CheckBDConfig(dir), checks.RuleBDConfig, tt.wantMsg)
+		})
+	}
 }

@@ -74,11 +74,20 @@ GOLANGCI_LINT_VERSION=v2.12.2
 
 const goodValues = `{"profile": "tool", "exceptions": []}` + "\n"
 
+// goodBDConfig declares the three fleet bd keys in the tracked file
+// (nested sync shape, flat custom shape — both fleet-real).
+const goodBDConfig = `issue-prefix: "cfm"
+custom.plan_dir: /vault/plans
+sync:
+    remote: "git+https://github.com/x/y.git"
+`
+
 // goodRepo is a complete conforming tool repo, minus bd state (tests stub bd
 // on PATH via fakeBD).
 func goodRepo() map[string]string {
 	return map[string]string{
 		"conform.json":                       goodValues,
+		".beads/config.yaml":                 goodBDConfig,
 		"Makefile":                           goodMakefile,
 		".golangci.yml":                      goodGolangci,
 		".sandbox/project.conf":              goodProjectConf,
@@ -108,24 +117,6 @@ func writeRepo(t *testing.T, files map[string]string) string {
 		}
 	}
 	return dir
-}
-
-// fakeBD puts a stub bd on PATH answering `bd config list`, so tests
-// exercise the bd-config check without a beads workspace. Pass "" to leave a
-// key unset.
-func fakeBD(t *testing.T, planDir, prefix, remote string) {
-	t.Helper()
-	bin := t.TempDir()
-	script := `#!/bin/sh
-echo "Configuration:"
-echo "  custom.plan_dir = ` + planDir + `"
-echo "  issue_prefix = ` + prefix + `"
-echo "  sync.remote = ` + remote + `"
-`
-	if err := os.WriteFile(filepath.Join(bin, "bd"), []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", bin)
 }
 
 // rulesOf collects the distinct rule ids present in findings.
