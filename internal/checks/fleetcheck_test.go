@@ -36,7 +36,7 @@ func conformingRepoResponses(full string) map[string]string {
 // allFleetResponses maps every roster repo to the same canned answers.
 func allFleetResponses(shape func(full string) map[string]string) map[string]string {
 	responses := map[string]string{}
-	for _, name := range []string{"ferret", "snipe", "trixi-bot", "itzy", "canapay", "fo", "loto", "strand", "npharvester", "trixi", "atomicfile", "keyring", "conform"} {
+	for _, name := range []string{"ferret", "snipe", "trixi-bot", "itzy", "canapay", "fo", "loto", "strand", "npharvester", "trixi", "atomicfile", "keyring", "next", "conform"} {
 		maps.Copy(responses, shape("dkoosis/"+name))
 	}
 	return responses
@@ -57,13 +57,13 @@ func TestRunFleet_ConformingFleet(t *testing.T) {
 	}
 }
 
-// TestRunFleet_StockRepo: one repo left on GitHub's defaults trips all four
-// rules, and every finding names the repo and carries a gh repair.
+// TestRunFleet_StockRepo: one repo left on GitHub's defaults trips the three
+// settings rules (pr-template moved to Surface 1 in v0.2.0), and every
+// finding names the repo and carries a gh repair.
 func TestRunFleet_StockRepo(t *testing.T) {
 	responses := allFleetResponses(conformingRepoResponses)
 	// snipe goes stock: no protection, stock labels, everything-on merges, no template.
 	delete(responses, "repos/dkoosis/snipe/branches/main/protection")
-	delete(responses, "repos/dkoosis/snipe/contents/.github/pull_request_template.md")
 	responses["repos/dkoosis/snipe"] = `{"default_branch":"main","allow_squash_merge":true,"allow_merge_commit":true,"allow_rebase_merge":true,"delete_branch_on_merge":false}`
 	responses["repos/dkoosis/snipe/labels?per_page=100"] = `[{"name":"bug"},{"name":"enhancement"}]`
 	restore := checks.SetGHAPI(ghStub(responses))
@@ -85,7 +85,7 @@ func TestRunFleet_StockRepo(t *testing.T) {
 			t.Errorf("%s finding carries no repair", f.Rule)
 		}
 	}
-	for _, want := range []string{checks.RuleBranchProtection, checks.RuleFleetLabels, checks.RuleMergePolicy, checks.RulePRTemplate} {
+	for _, want := range []string{checks.RuleBranchProtection, checks.RuleFleetLabels, checks.RuleMergePolicy} {
 		if !rules[want] {
 			t.Errorf("stock repo did not trip %s (findings: %v)", want, findings)
 		}
@@ -126,8 +126,8 @@ func TestRunFleet_ProtectionShape(t *testing.T) {
 // apply to its fleet findings.
 func TestRunFleet_ExceptionFromRepoValues(t *testing.T) {
 	responses := allFleetResponses(conformingRepoResponses)
-	delete(responses, "repos/dkoosis/keyring/contents/.github/pull_request_template.md")
-	valuesJSON := `{"profile": "lib", "exceptions": [{"rule": "pr-template", "reason": "finished micro-lib; PRs are rare and hand-written"}]}`
+	responses["repos/dkoosis/keyring"] = `{"default_branch":"main","allow_squash_merge":true,"allow_merge_commit":false,"allow_rebase_merge":false,"delete_branch_on_merge":false}`
+	valuesJSON := `{"profile": "lib", "exceptions": [{"rule": "merge-policy", "reason": "finished micro-lib; branch cleanup is manual by choice"}]}`
 	responses["repos/dkoosis/keyring/contents/conform.json"] = fmt.Sprintf(`{"content":%q}`, base64.StdEncoding.EncodeToString([]byte(valuesJSON)))
 	restore := checks.SetGHAPI(ghStub(responses))
 	defer restore()
@@ -137,8 +137,8 @@ func TestRunFleet_ExceptionFromRepoValues(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, f := range findings {
-		if f.File == "dkoosis/keyring" && f.Rule == checks.RulePRTemplate {
-			t.Errorf("excepted pr-template still reported: %v", f)
+		if f.File == "dkoosis/keyring" && f.Rule == checks.RuleMergePolicy {
+			t.Errorf("excepted merge-policy still reported: %v", f)
 		}
 	}
 }
