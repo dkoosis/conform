@@ -5,6 +5,7 @@
 //	conform          in-repo files (Makefile verbs, lint core, CI shape, bd config)
 //	conform --local  machine wiring CI can't see (hooksPath, hooks, dolt remote)
 //	conform --fleet  GitHub-side settings (protection, labels, merge policy)
+//	conform --fix    make the Surface-1 repairs that need no judgment, then check
 //
 // Failures name file, rule, and repair command. There is no soft-fail: a rule
 // too noisy to hard-fail gets deleted, not warned.
@@ -39,7 +40,7 @@ func run(args []string) error {
 	mode := "check"
 	if len(args) > 0 {
 		switch args[0] {
-		case "--local", "--fleet":
+		case "--local", "--fleet", "--fix":
 			mode = args[0][2:]
 		case "-h", "--help", "help":
 			usage()
@@ -52,6 +53,19 @@ func run(args []string) error {
 	dir, err := os.Getwd()
 	if err != nil {
 		return err
+	}
+	// --fix repairs first, then falls through to the ordinary check, so its
+	// exit code still answers "is this repo conforming" rather than "did I
+	// manage to write a file". A repo it cannot fully repair stays red.
+	if mode == "fix" {
+		done, ferr := checks.Fix(dir)
+		for _, line := range done {
+			fmt.Println("conform: fixed:", line)
+		}
+		if ferr != nil {
+			return ferr
+		}
+		mode = "check"
 	}
 	var findings []checks.Finding
 	switch mode {
@@ -82,5 +96,7 @@ func usage() {
   (no flag)  check in-repo files against the fleet contract
   --local    check machine-local wiring (hooksPath, hooks, dolt remote)
   --fleet    check GitHub-side settings across the fleet (gh auth)
+  --fix      make the in-repo repairs that need no judgment, then check.
+             Only ever creates what is absent; never rewrites your prose.
 `)
 }
