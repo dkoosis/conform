@@ -35,6 +35,7 @@ const (
 	RuleBDConfig     = "bd-config"         // bd config keys present
 	RuleHooksShape   = "hooks-shape"       // shape B: tracked .githooks
 	RulePRTemplate   = "pr-template"       // PR template present + non-empty (Surface 1 since v0.2.0)
+	RuleRoadmap      = "roadmap"           // ROADMAP.md present, carrying a ★ destination line
 )
 
 // Finding is one contract violation: which file, which rule, what to run.
@@ -64,6 +65,7 @@ func Run(dir string) []Finding {
 	findings = append(findings, checkBDConfig(dir)...)
 	findings = append(findings, checkHooksShape(dir)...)
 	findings = append(findings, checkPRTemplate(dir)...)
+	findings = append(findings, checkRoadmap(dir)...)
 
 	findings = applyExceptions(findings, vals)
 	sort.SliceStable(findings, func(i, j int) bool {
