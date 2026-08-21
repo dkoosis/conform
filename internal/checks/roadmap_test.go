@@ -179,6 +179,66 @@ func TestRoadmapSkeleton_NamesTheRepo(t *testing.T) {
 	}
 }
 
+// The two renderers differ on exactly one thing, and it is the thing the
+// checker greps for. --fix drops a page into a repo that may be unattended, so
+// its skeleton must stay red; init promises a repo that passes unedited, so its
+// page must carry a ★ line. Swapping them silently would either strand every
+// scaffolded repo on the roadmap rule or let --fix report green on a page
+// nobody wrote.
+func TestRoadmapRenderers_DifferOnTheStarLine(t *testing.T) {
+	repo := "widget"
+
+	fix := checks.RoadmapSkeleton(repo)
+	if findsStarLine(fix) {
+		t.Error("RoadmapSkeleton must not satisfy the ★ check — --fix leaves the page red until a human writes it")
+	}
+	if checkRoadmapFindings(t, fix) == 0 {
+		t.Error("a repo holding only the --fix skeleton should still fail the roadmap rule")
+	}
+
+	scaffold := checks.RoadmapScaffold(repo)
+	if !findsStarLine(scaffold) {
+		t.Error("RoadmapScaffold must satisfy the ★ check — conform init promises a repo that passes unedited")
+	}
+	if n := checkRoadmapFindings(t, scaffold); n != 0 {
+		t.Errorf("a repo holding the init page should pass the roadmap rule, got %d finding(s)", n)
+	}
+
+	// Everything below the destination block is the same page.
+	if !strings.HasSuffix(fix, roadmapTail) || !strings.HasSuffix(scaffold, roadmapTail) {
+		t.Error("the two renderers should share one body below the destination block")
+	}
+}
+
+const roadmapTail = "## Resources\n\n- <one hop to every resource the project has>\n"
+
+// findsStarLine mirrors the checker's own anchoring: line start, no indent.
+func findsStarLine(body string) bool {
+	for line := range strings.SplitSeq(body, "\n") {
+		if strings.HasPrefix(line, "★") {
+			return true
+		}
+	}
+	return false
+}
+
+// checkRoadmapFindings writes body as a repo's ROADMAP.md and counts the
+// roadmap-rule findings the real checker returns for it.
+func checkRoadmapFindings(t *testing.T, body string) int {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, checks.RoadmapFile), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, f := range checks.Run(dir) {
+		if f.Rule == checks.RuleRoadmap {
+			n++
+		}
+	}
+	return n
+}
+
 // findingFor returns the single finding for rule, failing the test otherwise.
 func findingFor(t *testing.T, findings []checks.Finding, rule string) checks.Finding {
 	t.Helper()

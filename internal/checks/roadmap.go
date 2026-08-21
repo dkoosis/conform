@@ -80,22 +80,45 @@ func roadmapRepair(dir string) string {
 	return "conform --fix (writes a " + RoadmapFile + " skeleton to fill in)"
 }
 
-// RoadmapSkeleton renders a starting ROADMAP.md for repo, named by its
-// directory. Every line is a prompt: the ★ placeholder is deliberately
-// unusable as-is, so a repo that runs --fix and stops still fails the ★ check
-// and says why, rather than passing with a file nobody wrote.
-//
-// One renderer, two callers: `conform --fix` repairs an existing repo with it,
-// and `conform init` emits it into a new one. That sharing is the whole reason
-// to grow our own rather than reach for a template tool — the skeleton a
-// scaffold emits and the shape the checker demands cannot drift when they are
-// the same function.
+// RoadmapSkeleton renders a starting ROADMAP.md for `conform --fix` to drop
+// into an existing repo. Every line is a prompt, and the ★ placeholder is
+// deliberately unusable as-is, so a repo that runs --fix and stops still fails
+// the ★ check and says why, rather than passing with a file nobody wrote.
 func RoadmapSkeleton(repo string) string {
+	return roadmapDoc(repo, roadmapFixDestination)
+}
+
+// RoadmapScaffold renders the same page for `conform init`, which promises a
+// repo that passes the checker unedited — so this one carries a real ★ line.
+//
+// The two differ on exactly one block, and the difference is who is standing
+// there. --fix repairs a repo that already exists and may be unattended, so a
+// green gate would be a lie about a page nobody wrote. init is a person naming
+// a new repo at the keyboard, watching conform list what it emitted; the ★
+// line it gets is visibly a prompt, and the promise it keeps — scaffold, run
+// the gate, see green — is what makes the scaffold trustworthy at all.
+//
+// One body, two callers, so the page a scaffold emits and the shape the
+// checker demands cannot drift.
+func RoadmapScaffold(repo string) string {
+	return roadmapDoc(repo, roadmapInitDestination)
+}
+
+// roadmapFixDestination refuses to satisfy hasStarLine: no line starts with ★.
+const roadmapFixDestination = "<!-- Replace this comment with the destination, as one line starting \"★ \".\n" +
+	"     Until you do, `conform` stays red on the roadmap rule — a skeleton\n" +
+	"     that passed the gate would read as direction and carry none. -->"
+
+// roadmapInitDestination satisfies hasStarLine and reads as unfinished, which
+// is the honest state of a repo one command old.
+const roadmapInitDestination = "★ <one sentence: where this project is going — replace this line>"
+
+// roadmapDoc renders the page around whichever destination block the caller
+// wants. Everything below the destination is identical for both.
+func roadmapDoc(repo, destination string) string {
 	return "# " + repo + `
 
-<!-- Replace this comment with the destination, as one line starting "★ ".
-     Until you do, ` + "`conform`" + ` stays red on the roadmap rule — a skeleton
-     that passed the gate would read as direction and carry none. -->
+` + destination + `
 
 <A paragraph on what this repo is. This file is the destination: the ★ line,
 the ordered milestones, and a link to every resource the project has. Start

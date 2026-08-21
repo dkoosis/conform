@@ -43,21 +43,31 @@ func main() {
 	}
 }
 
+// parseMode reads argv[0] into a surface name. Two of the four arguments are
+// not modes at all — init runs the scaffolder and help prints usage — so it
+// reports handled to tell run there is nothing left to check.
+func parseMode(args []string) (mode string, handled bool, err error) {
+	if len(args) == 0 {
+		return "check", false, nil
+	}
+	switch args[0] {
+	case "init":
+		return "", true, runInit(context.Background(), args[1:])
+	case "--local", "--fleet", "--fix":
+		return args[0][2:], false, nil
+	case "-h", "--help", "help":
+		usage()
+		return "", true, nil
+	default:
+		usage()
+		return "", true, fmt.Errorf("%w: unknown argument %q", errUsage, args[0])
+	}
+}
+
 func run(args []string) error {
-	mode := "check"
-	if len(args) > 0 {
-		switch args[0] {
-		case "init":
-			return runInit(context.Background(), args[1:])
-		case "--local", "--fleet", "--fix":
-			mode = args[0][2:]
-		case "-h", "--help", "help":
-			usage()
-			return nil
-		default:
-			usage()
-			return fmt.Errorf("%w: unknown argument %q", errUsage, args[0])
-		}
+	mode, handled, err := parseMode(args)
+	if handled {
+		return err
 	}
 	dir, err := os.Getwd()
 	if err != nil {

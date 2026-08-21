@@ -145,6 +145,7 @@ var baseArtifacts = []artifact{
 	{path: bdConfigFile, mode: 0o644, dirMode: 0o700, body: renderBDConfig},
 	{path: "go.mod", mode: 0o644, body: renderGoMod},
 	{path: "doc.go", mode: 0o644, body: renderDoc},
+	{path: RoadmapFile, mode: 0o644, body: renderRoadmap},
 }
 
 // scaffoldArtifacts is the skeleton, one entry per file. The paths are the
@@ -467,6 +468,14 @@ func renderGoMod(spec ScaffoldSpec) string {
 
 // renderDoc gives `go build ./...` and `go vet ./...` a package to chew on,
 // so `make check` is runnable the moment the skeleton lands.
+// renderRoadmap emits the direction home. It is the one artifact whose body a
+// human must replace before it says anything, so it ships the init variant of
+// the shared page — a ★ line the checker accepts and a reader can see is
+// unwritten (checks.RoadmapScaffold).
+func renderRoadmap(spec ScaffoldSpec) string {
+	return RoadmapScaffold(spec.Repo)
+}
+
 func renderDoc(spec ScaffoldSpec) string {
 	return fmt.Sprintf("// Package %s is the root of the %s module.\n//\n// Scaffolded by `conform init`. Replace this file with real code.\npackage %s\n",
 		goIdent(spec.Repo), spec.Repo, goIdent(spec.Repo))
