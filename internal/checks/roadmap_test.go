@@ -76,17 +76,41 @@ func TestCheckRoadmap_IndentedStarIsNotTheLine(t *testing.T) {
 // TestCheckRoadmap_RetiredFilePresent: a repo still on NORTH_STAR.md is a
 // rename, not a blank page — a fresh skeleton beside the old one would leave
 // two destinations and no rule about which wins.
-func TestCheckRoadmap_RetiredFilePresent(t *testing.T) {
+// NORTH_STAR.md is not a retired name and never a rename target. dk edits it in
+// the kg, a repo may carry it as a Publish-To reflection, and decision
+// 9b4cbc91016f settles the name as final. Renaming it away would delete the
+// published copy and orphan the publish target — the next publish re-creates
+// it, and conform would fight the publisher forever.
+func TestCheckRoadmap_NorthStarIsNeverRenamedAway(t *testing.T) {
 	t.Parallel()
 
 	files := goodRepo()
 	delete(files, checks.RoadmapFile)
-	files["NORTH_STAR.md"] = "★ the old pointer\n"
+	files[checks.NorthStarFile] = "★ ship the thing, for dk\n"
 	dir := writeRepo(t, files)
 
 	f := findingFor(t, checks.Run(dir), checks.RuleRoadmap)
-	if !strings.Contains(f.Repair, "git mv") {
-		t.Errorf("repair should preserve history with a rename, got %q", f.Repair)
+	if strings.Contains(f.Repair, "git mv") {
+		t.Errorf("repair must never move %s — it is the source, not a stale copy; got %q", checks.NorthStarFile, f.Repair)
+	}
+	if !strings.Contains(f.Repair, "★") {
+		t.Errorf("repair should say to copy the ★ line across, got %q", f.Repair)
+	}
+}
+
+// The two files coexist: the kg's page owns direction, the roadmap mirrors its
+// ★ line over an epic list. A repo holding both is conforming.
+func TestCheckRoadmap_NorthStarAndRoadmapCoexist(t *testing.T) {
+	t.Parallel()
+
+	files := goodRepo()
+	files[checks.NorthStarFile] = "★ ship the thing, for dk\n"
+	dir := writeRepo(t, files)
+
+	for _, f := range checks.Run(dir) {
+		if f.Rule == checks.RuleRoadmap {
+			t.Errorf("a repo holding both files should raise no roadmap finding, got %v", f)
+		}
 	}
 }
 
@@ -111,8 +135,11 @@ func TestFix_CreatesRoadmap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("skeleton not written: %v", err)
 	}
-	if !strings.Contains(string(body), "## Milestones") {
-		t.Errorf("skeleton should prompt for milestones, got:\n%s", body)
+	if !strings.Contains(string(body), "## Epics") {
+		t.Errorf("skeleton should prompt for the epic inventory, got:\n%s", body)
+	}
+	if strings.Contains(string(body), "Milestones") {
+		t.Errorf("milestone is a banned size word — the ordered list is epics, got:\n%s", body)
 	}
 	f := findingFor(t, checks.Run(dir), checks.RuleRoadmap)
 	if !strings.Contains(f.Msg, "★") {
@@ -148,23 +175,26 @@ func TestFix_IsIdempotentAndNeverOverwrites(t *testing.T) {
 // TestFix_DeclinesWhenARenameIsTheRepair: NORTH_STAR.md present means the fix
 // is `git mv`, which keeps history. Writing a skeleton beside it is worse than
 // writing nothing.
-func TestFix_DeclinesWhenARenameIsTheRepair(t *testing.T) {
+// --fix writes the roadmap even when NORTH_STAR.md is present. The old rule
+// declined here, on the theory that two files meant two destinations; they are
+// one destination and one epic inventory, so declining just left the repo red.
+func TestFix_WritesRoadmapBesideNorthStar(t *testing.T) {
 	t.Parallel()
 
 	files := goodRepo()
 	delete(files, checks.RoadmapFile)
-	files["NORTH_STAR.md"] = "★ the old pointer\n"
+	files[checks.NorthStarFile] = "★ ship the thing, for dk\n"
 	dir := writeRepo(t, files)
 
 	done, err := checks.Fix(dir)
 	if err != nil {
 		t.Fatalf("Fix() error: %v", err)
 	}
-	if len(done) != 0 {
-		t.Errorf("Fix() should decline in favour of a rename, got %v", done)
+	if len(done) != 1 || !strings.Contains(done[0], checks.RoadmapFile) {
+		t.Fatalf("Fix() = %v, want one line naming %s", done, checks.RoadmapFile)
 	}
-	if _, err := os.Stat(filepath.Join(dir, checks.RoadmapFile)); !os.IsNotExist(err) {
-		t.Error("Fix() wrote a second destination beside the retired one")
+	if _, err := os.Stat(filepath.Join(dir, checks.NorthStarFile)); err != nil {
+		t.Errorf("%s must survive untouched: %v", checks.NorthStarFile, err)
 	}
 }
 
@@ -177,6 +207,66 @@ func TestRoadmapSkeleton_NamesTheRepo(t *testing.T) {
 	if !strings.HasPrefix(got, "# widget\n") {
 		t.Errorf("skeleton should open with the repo name, got %q", firstLine(got))
 	}
+}
+
+// The two renderers differ on exactly one thing, and it is the thing the
+// checker greps for. --fix drops a page into a repo that may be unattended, so
+// its skeleton must stay red; init promises a repo that passes unedited, so its
+// page must carry a ★ line. Swapping them silently would either strand every
+// scaffolded repo on the roadmap rule or let --fix report green on a page
+// nobody wrote.
+func TestRoadmapRenderers_DifferOnTheStarLine(t *testing.T) {
+	repo := "widget"
+
+	fix := checks.RoadmapSkeleton(repo)
+	if findsStarLine(fix) {
+		t.Error("RoadmapSkeleton must not satisfy the ★ check — --fix leaves the page red until a human writes it")
+	}
+	if checkRoadmapFindings(t, fix) == 0 {
+		t.Error("a repo holding only the --fix skeleton should still fail the roadmap rule")
+	}
+
+	scaffold := checks.RoadmapScaffold(repo)
+	if !findsStarLine(scaffold) {
+		t.Error("RoadmapScaffold must satisfy the ★ check — conform init promises a repo that passes unedited")
+	}
+	if n := checkRoadmapFindings(t, scaffold); n != 0 {
+		t.Errorf("a repo holding the init page should pass the roadmap rule, got %d finding(s)", n)
+	}
+
+	// Everything below the destination block is the same page.
+	if !strings.HasSuffix(fix, roadmapTail) || !strings.HasSuffix(scaffold, roadmapTail) {
+		t.Error("the two renderers should share one body below the destination block")
+	}
+}
+
+const roadmapTail = "## Resources\n\n- <one hop to every resource the project has>\n"
+
+// findsStarLine mirrors the checker's own anchoring: line start, no indent.
+func findsStarLine(body string) bool {
+	for line := range strings.SplitSeq(body, "\n") {
+		if strings.HasPrefix(line, "★") {
+			return true
+		}
+	}
+	return false
+}
+
+// checkRoadmapFindings writes body as a repo's ROADMAP.md and counts the
+// roadmap-rule findings the real checker returns for it.
+func checkRoadmapFindings(t *testing.T, body string) int {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, checks.RoadmapFile), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, f := range checks.Run(dir) {
+		if f.Rule == checks.RuleRoadmap {
+			n++
+		}
+	}
+	return n
 }
 
 // findingFor returns the single finding for rule, failing the test otherwise.

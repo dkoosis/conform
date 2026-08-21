@@ -7,6 +7,13 @@
 //	conform --fleet  GitHub-side settings (protection, labels, merge policy)
 //	conform --fix    make the Surface-1 repairs that need no judgment, then check
 //
+// A fourth verb runs the contract backwards:
+//
+//	conform init <repo>  scaffold a repo that passes the checks above unedited
+//
+// init emits the skeleton from the SAME renderer the checks read, so a rule
+// change moves both halves at once.
+//
 // Failures name file, rule, and repair command. There is no soft-fail: a rule
 // too noisy to hard-fail gets deleted, not warned.
 package main
@@ -36,19 +43,31 @@ func main() {
 	}
 }
 
+// parseMode reads argv[0] into a surface name. Two of the four arguments are
+// not modes at all — init runs the scaffolder and help prints usage — so it
+// reports handled to tell run there is nothing left to check.
+func parseMode(args []string) (mode string, handled bool, err error) {
+	if len(args) == 0 {
+		return "check", false, nil
+	}
+	switch args[0] {
+	case "init":
+		return "", true, runInit(context.Background(), args[1:])
+	case "--local", "--fleet", "--fix":
+		return args[0][2:], false, nil
+	case "-h", "--help", "help":
+		usage()
+		return "", true, nil
+	default:
+		usage()
+		return "", true, fmt.Errorf("%w: unknown argument %q", errUsage, args[0])
+	}
+}
+
 func run(args []string) error {
-	mode := "check"
-	if len(args) > 0 {
-		switch args[0] {
-		case "--local", "--fleet", "--fix":
-			mode = args[0][2:]
-		case "-h", "--help", "help":
-			usage()
-			return nil
-		default:
-			usage()
-			return fmt.Errorf("%w: unknown argument %q", errUsage, args[0])
-		}
+	mode, handled, err := parseMode(args)
+	if handled {
+		return err
 	}
 	dir, err := os.Getwd()
 	if err != nil {
@@ -92,11 +111,15 @@ func run(args []string) error {
 
 func usage() {
 	fmt.Fprint(os.Stderr, `usage: conform [--local | --fleet]
+       conform init <repo> [flags]
 
   (no flag)  check in-repo files against the fleet contract
   --local    check machine-local wiring (hooksPath, hooks, dolt remote)
   --fleet    check GitHub-side settings across the fleet (gh auth)
   --fix      make the in-repo repairs that need no judgment, then check.
              Only ever creates what is absent; never rewrites your prose.
+  init       scaffold a new repo that passes the in-repo checks unedited,
+             then wire the machine half. GitHub state untouched unless
+             --with-remote is passed; conform init -h for flags.
 `)
 }
