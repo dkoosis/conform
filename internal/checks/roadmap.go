@@ -6,21 +6,32 @@ import (
 	"strings"
 )
 
-// RoadmapFile is the repo's direction home: one destination sentence and the
-// ordered milestones, each naming its bd epic. Beside the code, not in the kg
-// — a repo that has to be read from somewhere else has no direction of its
-// own (home/rules/sdlc.md §The standard).
+// RoadmapFile is the repo's epic inventory: the ordered epics, each naming its
+// bd id, under a ★ line MIRRORED from the kg.
+//
+// The kg holds direction, the repo holds the queue (home/rules/sdlc.md §The
+// standard; dk 2026-08-19, decision 538e0c94b65b, which reversed the earlier
+// "direction belongs beside the code" call). dk edits
+// Project/<repo>/NORTH_STAR.md and nothing else is a source; the ★ line here
+// is a copy that exists so the session-open path can grep one file beside the
+// code. Copy, never owner — which is why this rule checks that the line is
+// PRESENT and never that it is right.
 const RoadmapFile = "ROADMAP.md"
 
 // starPrefix marks the destination sentence. Every renderer that shows "where
 // is this project going" greps for exactly this, at the start of a line.
 const starPrefix = "★"
 
-// retiredDirectionFiles are the names ROADMAP.md replaced. Their presence is
-// not itself a finding — a repo may keep NORTH_STAR.md as a pointer during the
-// migration — but when ROADMAP.md is absent and one of these is present, the
-// repair is a rename, and saying so is worth more than "create a file".
-var retiredDirectionFiles = []string{"NORTH_STAR.md"}
+// NorthStarFile is the kg's direction document, which a repo may also carry as
+// a Publish-To reflection. It is NOT a retired name and never a rename target:
+// decision 9b4cbc91016f settles the name as final, and sdlc.md makes it the one
+// source. A repo holding it is holding a generated copy of dk's page — renaming
+// that away would delete the copy AND orphan the publish target, so the next
+// publish would re-create it and fight this checker forever.
+//
+// Its presence is never a finding. When ROADMAP.md is absent and this is here,
+// the repair is to WRITE a roadmap mirroring its ★ line — not to move anything.
+const NorthStarFile = "NORTH_STAR.md"
 
 // checkRoadmap verifies the repo carries a ROADMAP.md with a ★ destination
 // line (roadmap).
@@ -68,14 +79,13 @@ func hasStarLine(body string) bool {
 	return false
 }
 
-// roadmapRepair names the cheapest true fix. A repo still carrying one of the
-// retired names is a rename, not a blank page — telling it to "create
-// ROADMAP.md" would invite a second, emptier destination beside the real one.
+// roadmapRepair names the cheapest true fix. A repo already carrying the
+// published NORTH_STAR.md has the ★ line on disk, so the repair is to copy that
+// one line across — the two files coexist by design and neither replaces the
+// other.
 func roadmapRepair(dir string) string {
-	for _, rel := range retiredDirectionFiles {
-		if _, err := os.Stat(filepath.Join(dir, rel)); err == nil {
-			return "git mv " + rel + " " + RoadmapFile + " (then `conform --fix` to check its shape)"
-		}
+	if _, err := os.Stat(filepath.Join(dir, NorthStarFile)); err == nil {
+		return "conform --fix, then copy the ★ line from " + NorthStarFile + " into " + RoadmapFile
 	}
 	return "conform --fix (writes a " + RoadmapFile + " skeleton to fill in)"
 }
@@ -105,13 +115,14 @@ func RoadmapScaffold(repo string) string {
 }
 
 // roadmapFixDestination refuses to satisfy hasStarLine: no line starts with ★.
-const roadmapFixDestination = "<!-- Replace this comment with the destination, as one line starting \"★ \".\n" +
+const roadmapFixDestination = "<!-- Replace this comment with the ★ line from the kg's\n" +
+	"     Project/<repo>/NORTH_STAR.md, copied verbatim, at the start of a line.\n" +
 	"     Until you do, `conform` stays red on the roadmap rule — a skeleton\n" +
 	"     that passed the gate would read as direction and carry none. -->"
 
 // roadmapInitDestination satisfies hasStarLine and reads as unfinished, which
 // is the honest state of a repo one command old.
-const roadmapInitDestination = "★ <one sentence: where this project is going — replace this line>"
+const roadmapInitDestination = "★ <mirror the ★ line from the kg: Project/<repo>/NORTH_STAR.md>"
 
 // roadmapDoc renders the page around whichever destination block the caller
 // wants. Everything below the destination is identical for both.
@@ -120,17 +131,18 @@ func roadmapDoc(repo, destination string) string {
 
 ` + destination + `
 
-<A paragraph on what this repo is. This file is the destination: the ★ line,
-the ordered milestones, and a link to every resource the project has. Start
-here and you can reach the rest. Hand-written — agents do not edit it
-unprompted.>
+<A paragraph on what this repo is. Direction is not decided here: dk edits
+Project/<repo>/NORTH_STAR.md in the kg and nothing else is a source, so the ★
+line above is a copy kept beside the code for the session-open path. What this
+file owns is the epic inventory below — what is done, what is underway, what
+comes next. Hand-written; agents do not edit it unprompted.>
 
-## Milestones
+## Epics
 
-Ordered. Each names its bd epic; progress is never written here — it derives
-at read time from the bd DAG joined against these ids.
+Ordered, one line per epic. Progress is never written here — it derives at read
+time from the bd DAG joined against these ids.
 
-1. <milestone> → <bd-epic-id>
+1. [status] <epic title> → <bd-epic-id>
 
 ## Non-goals
 
