@@ -237,30 +237,34 @@ func mergePolicyFindings(full string, s *repoSettings) []Finding {
 		Repair: repair}}
 }
 
-// fleetValues fetches a repo's conform.json so its declared exceptions apply
-// to fleet findings too. Missing or invalid → no exceptions (Surface 1 of
+// fleetValues fetches a repo's values file — trying values.CandidatePaths in
+// order (root, then docs/) — so its declared exceptions apply to fleet
+// findings too. Missing everywhere or invalid → no exceptions (Surface 1 of
 // that repo owns the values-file finding).
 func fleetValues(ctx context.Context, full string) values.Values {
 	none := values.Values{Profile: values.ProfileTool}
-	data, err := ghAPI(ctx, "repos/"+full+"/contents/conform.json")
-	if err != nil {
-		return none
+	for _, rel := range values.CandidatePaths {
+		data, err := ghAPI(ctx, "repos/"+full+"/contents/"+rel)
+		if err != nil {
+			continue
+		}
+		var contents struct {
+			Content string `json:"content"`
+		}
+		if json.Unmarshal(data, &contents) != nil {
+			continue
+		}
+		raw, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(contents.Content, "\n", ""))
+		if err != nil {
+			continue
+		}
+		v, err := values.Parse(strings.NewReader(string(raw)))
+		if err != nil {
+			continue
+		}
+		return *v
 	}
-	var contents struct {
-		Content string `json:"content"`
-	}
-	if json.Unmarshal(data, &contents) != nil {
-		return none
-	}
-	raw, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(contents.Content, "\n", ""))
-	if err != nil {
-		return none
-	}
-	v, err := values.Parse(strings.NewReader(string(raw)))
-	if err != nil {
-		return none
-	}
-	return *v
+	return none
 }
 
 // fetchJSON GETs path and decodes into T.

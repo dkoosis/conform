@@ -35,7 +35,7 @@ const (
 	RuleBDConfig     = "bd-config"         // bd config keys present
 	RuleHooksShape   = "hooks-shape"       // shape B: tracked .githooks
 	RulePRTemplate   = "pr-template"       // PR template present + non-empty (Surface 1 since v0.2.0)
-	RuleRoadmap      = "roadmap"           // ROADMAP.md present, carrying a ★ destination line
+	RuleSandboxLib   = "sandbox-lib"       // .sandbox/lib matches the canonical copy conform ships
 )
 
 // Finding is one contract violation: which file, which rule, what to run.
@@ -65,7 +65,7 @@ func Run(dir string) []Finding {
 	findings = append(findings, checkBDConfig(dir)...)
 	findings = append(findings, checkHooksShape(dir)...)
 	findings = append(findings, checkPRTemplate(dir)...)
-	findings = append(findings, checkRoadmap(dir)...)
+	findings = append(findings, checkSandboxLib(dir)...)
 
 	findings = applyExceptions(findings, vals)
 	sort.SliceStable(findings, func(i, j int) bool {
@@ -77,30 +77,36 @@ func Run(dir string) []Finding {
 	return findings
 }
 
-// loadValues reads conform.json. Absent or invalid, the checks still run —
+// loadValues reads the repo's values file, trying each of
+// values.CandidatePaths in order (root, then docs/) and using the first one
+// present. Absent everywhere or invalid where found, the checks still run —
 // under the default tool profile with no exceptions — and the values problem
 // is reported as a finding of its own.
 func loadValues(dir string) (values.Values, []Finding) {
 	fallback := values.Values{Profile: values.ProfileTool}
-	path := filepath.Join(dir, "conform.json")
-	v, err := values.Load(path)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return fallback, []Finding{{
-				File:   "conform.json",
-				Rule:   RuleValuesFile,
-				Msg:    "values file missing — conform needs the repo's profile (tool|lib) and declared exceptions",
-				Repair: `create conform.json: {"profile": "tool", "exceptions": []}`,
-			}}
+	for _, rel := range values.CandidatePaths {
+		v, err := values.Load(filepath.Join(dir, rel))
+		if err == nil {
+			return *v, nil
 		}
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		// Found at rel but invalid — report against that path, don't mask a
+		// real error by falling through to the next candidate.
 		return fallback, []Finding{{
-			File:   "conform.json",
+			File:   rel,
 			Rule:   RuleValuesFile,
 			Msg:    err.Error(),
-			Repair: "fix conform.json: profile tool|lib; every exception needs rule + reason",
+			Repair: fmt.Sprintf("fix %s: profile tool|lib; every exception needs rule + reason", rel),
 		}}
 	}
-	return *v, nil
+	return fallback, []Finding{{
+		File:   values.CandidatePaths[0],
+		Rule:   RuleValuesFile,
+		Msg:    "values file missing — conform needs the repo's profile (tool|lib) and declared exceptions",
+		Repair: `create conform.json (or docs/conform.json): {"profile": "tool", "exceptions": []}`,
+	}}
 }
 
 // applyExceptions drops findings whose rule id the repo has excepted with a

@@ -37,6 +37,21 @@ func TestRun_MissingValuesFile(t *testing.T) {
 	}
 }
 
+// TestRun_ValuesFileUnderDocs: conform.json living at docs/conform.json
+// (a repo that moved every doc but README.md out of root) is found and
+// honored exactly like the root location.
+func TestRun_ValuesFileUnderDocs(t *testing.T) {
+	files := goodRepo()
+	delete(files, "conform.json")
+	files["docs/conform.json"] = goodValues
+	dir := writeRepo(t, files)
+
+	findings := checks.Run(dir)
+	if len(findings) != 0 {
+		t.Fatalf("Run() with docs/conform.json returned %d finding(s):\n%v", len(findings), findings)
+	}
+}
+
 // TestRun_InvalidValuesFile: the finding carries the values package's
 // path-and-field error text.
 func TestRun_InvalidValuesFile(t *testing.T) {
