@@ -32,12 +32,12 @@ func Fix(dir string) ([]string, error) {
 	return done, nil
 }
 
-// fixRoadmap writes a ROADMAP.md skeleton when the repo has no direction home.
+// fixRoadmap writes a ROADMAP.md skeleton when the repo has no epic inventory.
 //
-// It deliberately declines when a retired direction file is still present: the
-// right move there is `git mv`, which keeps the file's history, and a fresh
-// skeleton beside the old page would leave the repo with two destinations and
-// no rule about which one wins. The finding already names that repair.
+// A NORTH_STAR.md sitting beside it does not stop this. The two coexist by
+// design — the kg's page is the source of direction and this one mirrors its ★
+// line over an epic list — so writing the skeleton is right even then, and the
+// finding's repair says to copy the ★ line across.
 func fixRoadmap(dir string) (string, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
@@ -49,12 +49,6 @@ func fixRoadmap(dir string) (string, error) {
 	} else if !os.IsNotExist(err) {
 		return "", err
 	}
-	for _, rel := range retiredDirectionFiles {
-		if _, err := os.Stat(filepath.Join(abs, rel)); err == nil {
-			return "", nil
-		}
-	}
-
 	body := RoadmapSkeleton(filepath.Base(abs))
 	// 0o600: the file is world-readable the moment git tracks it, so a wider
 	// mode here buys nothing and trips gosec. #nosec is a worse answer than a
@@ -62,5 +56,5 @@ func fixRoadmap(dir string) (string, error) {
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("created %s — fill in the ★ line and the milestones", RoadmapFile), nil
+	return fmt.Sprintf("created %s — copy the ★ line from the kg's %s, then list the epics", RoadmapFile, NorthStarFile), nil
 }
