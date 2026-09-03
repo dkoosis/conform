@@ -22,8 +22,14 @@ import (
 // Surface-1 rule ids. Other surfaces reserve their own ids in the same
 // vocabulary (e.g. `no-git-ops`, honored by --local for repos like loto that
 // declare git operations out of scope).
+// ValuesFile is the repo's conform.json, under docs/ like every other
+// repo-level declaration: the root is minimal (decision d9cd0e20868b). Only
+// dotfiles a host tool reads at the root by name stay there; conform reads its
+// own file wherever it says, so it says docs/.
+const ValuesFile = "docs/conform.json"
+
 const (
-	RuleValuesFile   = "values-file"       // conform.json present and valid
+	RuleValuesFile   = "values-file"       // docs/conform.json present and valid
 	RuleMakefileVerb = "makefile-verbs"    // four-verb contract + prereq composition
 	RuleMakefileDocs = "makefile-docs"     // every target carries a ## doc comment
 	RuleLintFloor    = "lint-floor"        // .golangci.yml carries the 6-linter baseline floor
@@ -36,6 +42,7 @@ const (
 	RuleHooksShape   = "hooks-shape"       // shape B: tracked .githooks
 	RulePRTemplate   = "pr-template"       // PR template present + non-empty (Surface 1 since v0.2.0)
 	RuleRoadmap      = "roadmap"           // ROADMAP.md present, carrying a ★ destination line
+	RuleRootMinimal  = "root-minimal"      // no CLAUDE.md / ROADMAP.md / conform.json / NORTH_STAR.md at the root
 )
 
 // Finding is one contract violation: which file, which rule, what to run.
@@ -66,6 +73,7 @@ func Run(dir string) []Finding {
 	findings = append(findings, checkHooksShape(dir)...)
 	findings = append(findings, checkPRTemplate(dir)...)
 	findings = append(findings, checkRoadmap(dir)...)
+	findings = append(findings, checkRootMinimal(dir)...)
 
 	findings = applyExceptions(findings, vals)
 	sort.SliceStable(findings, func(i, j int) bool {
@@ -77,27 +85,27 @@ func Run(dir string) []Finding {
 	return findings
 }
 
-// loadValues reads conform.json. Absent or invalid, the checks still run —
+// loadValues reads docs/conform.json (ValuesFile). Absent or invalid, the checks still run —
 // under the default tool profile with no exceptions — and the values problem
 // is reported as a finding of its own.
 func loadValues(dir string) (values.Values, []Finding) {
 	fallback := values.Values{Profile: values.ProfileTool}
-	path := filepath.Join(dir, "conform.json")
+	path := filepath.Join(dir, ValuesFile)
 	v, err := values.Load(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return fallback, []Finding{{
-				File:   "conform.json",
+				File:   ValuesFile,
 				Rule:   RuleValuesFile,
 				Msg:    "values file missing — conform needs the repo's profile (tool|lib) and declared exceptions",
-				Repair: `create conform.json: {"profile": "tool", "exceptions": []}`,
+				Repair: `create ` + ValuesFile + `: {"profile": "tool", "exceptions": []}`,
 			}}
 		}
 		return fallback, []Finding{{
-			File:   "conform.json",
+			File:   ValuesFile,
 			Rule:   RuleValuesFile,
 			Msg:    err.Error(),
-			Repair: "fix conform.json: profile tool|lib; every exception needs rule + reason",
+			Repair: "fix " + ValuesFile + ": profile tool|lib; every exception needs rule + reason",
 		}}
 	}
 	return *v, nil

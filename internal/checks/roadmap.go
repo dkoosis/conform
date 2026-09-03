@@ -7,7 +7,11 @@ import (
 )
 
 // RoadmapFile is the repo's epic inventory: the ordered epics, each naming its
-// bd id, under a ★ line MIRRORED from the kg.
+// bd id, under a ★ line MIRRORED from the kg. It lives under docs/: the root is
+// minimal and a root entry earns its place (decision d9cd0e20868b, dk
+// 2026-09-02) — README.md is the one file the root must carry; direction
+// documents sit under docs/. A ROADMAP.md at the root is a root-minimal
+// finding, never a second place this rule looks.
 //
 // The kg holds direction, the repo holds the queue (home/rules/sdlc.md §The
 // standard; dk 2026-08-19, decision 538e0c94b65b, which reversed the earlier
@@ -16,7 +20,7 @@ import (
 // is a copy that exists so the session-open path can grep one file beside the
 // code. Copy, never owner — which is why this rule checks that the line is
 // PRESENT and never that it is right.
-const RoadmapFile = "ROADMAP.md"
+const RoadmapFile = "docs/ROADMAP.md"
 
 // starPrefix marks the destination sentence. Every renderer that shows "where
 // is this project going" greps for exactly this, at the start of a line.
@@ -31,9 +35,9 @@ const starPrefix = "★"
 //
 // Its presence is never a finding. When ROADMAP.md is absent and this is here,
 // the repair is to WRITE a roadmap mirroring its ★ line — not to move anything.
-const NorthStarFile = "NORTH_STAR.md"
+const NorthStarFile = "docs/NORTH_STAR.md"
 
-// checkRoadmap verifies the repo carries a ROADMAP.md with a ★ destination
+// checkRoadmap verifies the repo carries a docs/ROADMAP.md with a ★ destination
 // line (roadmap).
 //
 // Two failures, deliberately distinct. A missing file means the repo has no

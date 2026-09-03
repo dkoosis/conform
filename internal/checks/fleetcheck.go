@@ -237,12 +237,12 @@ func mergePolicyFindings(full string, s *repoSettings) []Finding {
 		Repair: repair}}
 }
 
-// fleetValues fetches a repo's conform.json so its declared exceptions apply
+// fleetValues fetches a repo's docs/conform.json so its declared exceptions apply
 // to fleet findings too. Missing or invalid → no exceptions (Surface 1 of
 // that repo owns the values-file finding).
 func fleetValues(ctx context.Context, full string) values.Values {
 	none := values.Values{Profile: values.ProfileTool}
-	data, err := ghAPI(ctx, "repos/"+full+"/contents/conform.json")
+	data, err := ghAPI(ctx, "repos/"+full+"/contents/"+ValuesFile)
 	if err != nil {
 		return none
 	}

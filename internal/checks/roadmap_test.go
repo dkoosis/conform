@@ -257,6 +257,9 @@ func findsStarLine(body string) bool {
 func checkRoadmapFindings(t *testing.T, body string) int {
 	t.Helper()
 	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, filepath.Dir(checks.RoadmapFile)), 0o750); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(dir, checks.RoadmapFile), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
