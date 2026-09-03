@@ -136,7 +136,7 @@ type artifact struct {
 // the matching verify half reads, so a rule that renames its file renames
 // the emitted one too.
 var baseArtifacts = []artifact{
-	{path: "conform.json", mode: 0o644, body: renderValuesFile},
+	{path: ValuesFile, mode: 0o644, body: renderValuesFile},
 	{path: "Makefile", mode: 0o644, body: renderMakefile},
 	{path: ".golangci.yml", mode: 0o644, body: renderGolangci},
 	{path: pinFile, mode: 0o644, body: renderProjectConf},
@@ -229,7 +229,7 @@ func ScaffoldPaths(spec ScaffoldSpec) []string {
 // Each renderer below is the emit half of exactly one rule, and reads the
 // same variable its verify half reads.
 
-// renderValuesFile emits conform.json through the values package the loader
+// renderValuesFile emits docs/conform.json through the values package the loader
 // parses it with — one schema, marshalled and unmarshalled by the same type.
 func renderValuesFile(spec ScaffoldSpec) string {
 	v := values.Values{Profile: spec.Profile, Exceptions: []values.Exception{}}

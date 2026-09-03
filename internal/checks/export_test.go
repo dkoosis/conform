@@ -14,6 +14,7 @@ var (
 	CheckRetiredFiles = checkRetiredFiles
 	CheckBDConfig     = checkBDConfig
 	CheckHooksShape   = checkHooksShape
+	CheckRootMinimal  = checkRootMinimal
 )
 
 // Surface-2 test hooks.
@@ -36,3 +37,12 @@ var ErrNotFound = errNotFound
 
 // v0.2.0 test hooks.
 var CheckPRTemplate = checkPRTemplate
+
+// RootStrayNames lists the files root-minimal flags, for the per-file test.
+func RootStrayNames() []string {
+	names := make([]string, 0, len(rootStrays))
+	for _, s := range rootStrays {
+		names = append(names, s.name)
+	}
+	return names
+}

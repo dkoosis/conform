@@ -32,7 +32,7 @@ func Fix(dir string) ([]string, error) {
 	return done, nil
 }
 
-// fixRoadmap writes a ROADMAP.md skeleton when the repo has no epic inventory.
+// fixRoadmap writes a docs/ROADMAP.md skeleton when the repo has no epic inventory.
 //
 // A NORTH_STAR.md sitting beside it does not stop this. The two coexist by
 // design — the kg's page is the source of direction and this one mirrors its ★
@@ -50,6 +50,10 @@ func fixRoadmap(dir string) (string, error) {
 		return "", err
 	}
 	body := RoadmapSkeleton(filepath.Base(abs))
+	// docs/ may not exist yet in a repo that never had a direction home.
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return "", err
+	}
 	// 0o600: the file is world-readable the moment git tracks it, so a wider
 	// mode here buys nothing and trips gosec. #nosec is a worse answer than a
 	// mode that is simply correct.

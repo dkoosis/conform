@@ -24,7 +24,7 @@ func TestRun_ConformingRepo(t *testing.T) {
 // remaining checks still run under the default tool profile.
 func TestRun_MissingValuesFile(t *testing.T) {
 	files := goodRepo()
-	delete(files, "conform.json")
+	delete(files, checks.ValuesFile)
 	dir := writeRepo(t, files)
 
 	findings := checks.Run(dir)
@@ -41,7 +41,7 @@ func TestRun_MissingValuesFile(t *testing.T) {
 // path-and-field error text.
 func TestRun_InvalidValuesFile(t *testing.T) {
 	files := goodRepo()
-	files["conform.json"] = `{"profile": "tool", "exceptions": [{"rule": "x"}]}`
+	files[checks.ValuesFile] = `{"profile": "tool", "exceptions": [{"rule": "x"}]}`
 	dir := writeRepo(t, files)
 
 	findings := checks.Run(dir)
@@ -54,7 +54,7 @@ func TestRun_InvalidValuesFile(t *testing.T) {
 	if msg == "" {
 		t.Fatalf("want a %s finding, got %v", checks.RuleValuesFile, findings)
 	}
-	for _, part := range []string{"conform.json", `rule "x"`, "reason"} {
+	for _, part := range []string{"docs/conform.json", `rule "x"`, "reason"} {
 		if !strings.Contains(msg, part) {
 			t.Errorf("finding message %q should name %q", msg, part)
 		}
@@ -69,7 +69,7 @@ func TestRun_ExceptionSuppressesFinding(t *testing.T) {
 	files[".github/workflows/codex-review.yml"] = strings.Replace(
 		goodCodexYML, "issue_comment:\n    types: [created]", "pull_request:", 1)
 	// …and declare the exception.
-	files["conform.json"] = `{"profile": "tool", "exceptions": [
+	files[checks.ValuesFile] = `{"profile": "tool", "exceptions": [
 		{"rule": "codex-workflow", "reason": "this repo pays for auto-review deliberately"}]}`
 	dir := writeRepo(t, files)
 
@@ -79,10 +79,59 @@ func TestRun_ExceptionSuppressesFinding(t *testing.T) {
 	}
 
 	// Same break without the exception must fail.
-	files["conform.json"] = goodValues
+	files[checks.ValuesFile] = goodValues
 	dir = writeRepo(t, files)
 	if n := rulesOf(checks.Run(dir))[checks.RuleCodexShape]; n == 0 {
 		t.Error("codex-workflow break produced no finding without the exception")
+	}
+}
+
+// TestRun_LegacyValuesFileStillHonored: a repo that has not yet moved its
+// conform.json under docs/ keeps its declared exceptions.
+//
+// This is the migration's whole risk. Five of seven fleet repos declare at the
+// root, and a cutover that read only docs/conform.json would drop their
+// exceptions the next time conform ran — every rule they had excused firing at
+// once, with the one finding that explains why buried among them. Read the
+// root copy, and report it as a root-minimal stray: the repo keeps working and
+// still learns it must move.
+func TestRun_LegacyValuesFileStillHonored(t *testing.T) {
+	files := goodRepo()
+	// Break the codex shape…
+	files[".github/workflows/codex-review.yml"] = strings.Replace(
+		goodCodexYML, "issue_comment:\n    types: [created]", "pull_request:", 1)
+	// …and declare the exception at the ROOT, where it lived before the move.
+	delete(files, checks.ValuesFile)
+	files[checks.LegacyValuesFile] = `{"profile": "tool", "exceptions": [
+		{"rule": "codex-workflow", "reason": "this repo pays for auto-review deliberately"}]}`
+	dir := writeRepo(t, files)
+
+	findings := checks.Run(dir)
+	if n := rulesOf(findings)[checks.RuleCodexShape]; n != 0 {
+		t.Errorf("root conform.json exception ignored: %d finding(s): %v", n, findings)
+	}
+	// The root copy is read, not blessed: it is still a stray to move.
+	if n := rulesOf(findings)[checks.RuleRootMinimal]; n == 0 {
+		t.Error("root conform.json produced no root-minimal finding")
+	}
+	// And it must not ALSO be reported as a missing values file.
+	if n := rulesOf(findings)[checks.RuleValuesFile]; n != 0 {
+		t.Errorf("values-file finding raised despite a readable root copy: %v", findings)
+	}
+}
+
+// TestRun_InvalidDocsValuesFileDoesNotFallBack: a docs/conform.json that is
+// present but broken is reported as broken. Quietly using the root copy instead
+// would hide the typo behind stale values — the fallback covers a file that is
+// missing, never one that is wrong.
+func TestRun_InvalidDocsValuesFileDoesNotFallBack(t *testing.T) {
+	files := goodRepo()
+	files[checks.ValuesFile] = `{"profile": "tool", "exceptions": [{"rule": "x"}]}`
+	files[checks.LegacyValuesFile] = goodValues
+	dir := writeRepo(t, files)
+
+	if n := rulesOf(checks.Run(dir))[checks.RuleValuesFile]; n == 0 {
+		t.Error("invalid docs/conform.json was masked by the root fallback")
 	}
 }
 
@@ -90,7 +139,7 @@ func TestRun_ExceptionSuppressesFinding(t *testing.T) {
 // a finding, its absence is not.
 func TestRun_LibProfile(t *testing.T) {
 	files := goodRepo()
-	files["conform.json"] = `{"profile": "lib", "exceptions": []}`
+	files[checks.ValuesFile] = `{"profile": "lib", "exceptions": []}`
 
 	// Lib with deploy: finding.
 	dir := writeRepo(t, files)

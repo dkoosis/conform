@@ -36,7 +36,7 @@ exit 0
 // values loader needs.
 func localRepo() map[string]string {
 	files := map[string]string{
-		"conform.json":       goodValues,
+		"docs/conform.json":  goodValues,
 		".beads/config.yaml": goodBDConfig,
 	}
 	for _, e := range hookEvents {
@@ -114,7 +114,7 @@ func TestRunLocal_DeadWiring(t *testing.T) {
 // whole hook family in one word; the bd rules still run.
 func TestRunLocal_NoGitOpsException(t *testing.T) {
 	files := map[string]string{
-		"conform.json": `{"profile": "tool", "exceptions": [
+		"docs/conform.json": `{"profile": "tool", "exceptions": [
 			{"rule": "no-git-ops", "reason": "loto never performs git operations by design"}]}`,
 		".beads/config.yaml": goodBDConfig,
 	}

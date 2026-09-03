@@ -128,7 +128,7 @@ func TestRunFleet_ExceptionFromRepoValues(t *testing.T) {
 	responses := allFleetResponses(conformingRepoResponses)
 	responses["repos/dkoosis/keyring"] = `{"default_branch":"main","allow_squash_merge":true,"allow_merge_commit":false,"allow_rebase_merge":false,"delete_branch_on_merge":false}`
 	valuesJSON := `{"profile": "lib", "exceptions": [{"rule": "merge-policy", "reason": "finished micro-lib; branch cleanup is manual by choice"}]}`
-	responses["repos/dkoosis/keyring/contents/conform.json"] = fmt.Sprintf(`{"content":%q}`, base64.StdEncoding.EncodeToString([]byte(valuesJSON)))
+	responses["repos/dkoosis/keyring/contents/docs/conform.json"] = fmt.Sprintf(`{"content":%q}`, base64.StdEncoding.EncodeToString([]byte(valuesJSON)))
 	restore := checks.SetGHAPI(ghStub(responses))
 	defer restore()
 
