@@ -24,7 +24,11 @@ func TestRootMinimal_EachStrayIsAFinding(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			files := goodRepo()
-			files[name] = "x\n"
+			if name == "kg" {
+				files[name+"/reference/x.md"] = "x\n"
+			} else {
+				files[name] = "x\n"
+			}
 			dir := writeRepo(t, files)
 			got := checks.CheckRootMinimal(dir)
 			if len(got) != 1 || got[0].File != name || got[0].Rule != checks.RuleRootMinimal {
