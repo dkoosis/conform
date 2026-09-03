@@ -238,11 +238,20 @@ func mergePolicyFindings(full string, s *repoSettings) []Finding {
 }
 
 // fleetValues fetches a repo's docs/conform.json so its declared exceptions apply
-// to fleet findings too. Missing or invalid → no exceptions (Surface 1 of
+// to fleet findings too, falling back to the root copy (LegacyValuesFile) while
+// the fleet migrates. Missing or invalid → no exceptions (Surface 1 of
 // that repo owns the values-file finding).
+//
+// The fallback has to be here as well as in loadValues: a fleet sweep reads
+// GitHub, never the working tree, so a local-only fallback would leave every
+// unmigrated repo exception-less in exactly the sweep that reports on all of
+// them at once.
 func fleetValues(ctx context.Context, full string) values.Values {
 	none := values.Values{Profile: values.ProfileTool}
 	data, err := ghAPI(ctx, "repos/"+full+"/contents/"+ValuesFile)
+	if err != nil {
+		data, err = ghAPI(ctx, "repos/"+full+"/contents/"+LegacyValuesFile)
+	}
 	if err != nil {
 		return none
 	}

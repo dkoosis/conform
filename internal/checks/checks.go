@@ -19,15 +19,28 @@ import (
 	"github.com/dkoosis/conform/internal/values"
 )
 
-// Surface-1 rule ids. Other surfaces reserve their own ids in the same
-// vocabulary (e.g. `no-git-ops`, honored by --local for repos like loto that
-// declare git operations out of scope).
 // ValuesFile is the repo's conform.json, under docs/ like every other
 // repo-level declaration: the root is minimal (decision d9cd0e20868b). Only
 // dotfiles a host tool reads at the root by name stay there; conform reads its
 // own file wherever it says, so it says docs/.
 const ValuesFile = "docs/conform.json"
 
+// LegacyValuesFile is where the file sat before ValuesFile moved it, and
+// conform still reads it when docs/ has none. Five of seven fleet repos declare
+// their profile and exceptions at the root today; a cutover that read only
+// ValuesFile would drop every one of those exceptions on the next sweep, so
+// each repo would light up with findings it had already excused — and the
+// values-file finding pointing at the move would be buried in them.
+//
+// Reading it is not blessing it: root-minimal still reports a root conform.json
+// with `git mv` as the repair. Read here, flagged there — that pairing is what
+// lets a repo move on its own schedule instead of all at once. Delete this
+// constant and its fallback once no fleet repo declares at the root.
+const LegacyValuesFile = "conform.json"
+
+// Surface-1 rule ids. Other surfaces reserve their own ids in the same
+// vocabulary (e.g. `no-git-ops`, honored by --local for repos like loto that
+// declare git operations out of scope).
 const (
 	RuleValuesFile   = "values-file"       // docs/conform.json present and valid
 	RuleMakefileVerb = "makefile-verbs"    // four-verb contract + prereq composition
@@ -85,13 +98,23 @@ func Run(dir string) []Finding {
 	return findings
 }
 
-// loadValues reads docs/conform.json (ValuesFile). Absent or invalid, the checks still run —
-// under the default tool profile with no exceptions — and the values problem
-// is reported as a finding of its own.
+// loadValues reads docs/conform.json (ValuesFile), falling back to the root
+// (LegacyValuesFile) while the fleet migrates. Absent or invalid, the checks
+// still run — under the default tool profile with no exceptions — and the
+// values problem is reported as a finding of its own.
+//
+// Only a MISSING docs/ file falls back. An invalid one is reported as it
+// stands: silently preferring the root copy because the canonical file has a
+// typo would hide the typo behind stale values.
 func loadValues(dir string) (values.Values, []Finding) {
 	fallback := values.Values{Profile: values.ProfileTool}
 	path := filepath.Join(dir, ValuesFile)
 	v, err := values.Load(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		if legacy, lerr := values.Load(filepath.Join(dir, LegacyValuesFile)); lerr == nil {
+			return *legacy, nil
+		}
+	}
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return fallback, []Finding{{
