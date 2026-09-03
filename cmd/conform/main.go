@@ -145,8 +145,9 @@ func runSandbox(args []string) error {
 }
 
 func usage() {
-	fmt.Fprint(os.Stderr, `usage: conform [--local | --fleet]
+	fmt.Fprint(os.Stderr, `usage: conform [--local | --fleet | --fix]
        conform init <repo> [flags]
+       conform sandbox sync
 
   (no flag)  check in-repo files against the fleet contract
   --local    check machine-local wiring (hooksPath, hooks, dolt remote)
