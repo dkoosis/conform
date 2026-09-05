@@ -94,6 +94,7 @@ func goodRepo() map[string]string {
 		".github/workflows/check.yml":        goodCheckYML,
 		".github/workflows/codex-review.yml": goodCodexYML,
 		".github/PULL_REQUEST_TEMPLATE.md":   "## What\n\n## Why\n",
+		"README.md":                          "# repo\n\nwhat this repo is, in one paragraph.\n",
 		"docs/ROADMAP.md":                    "# repo\n\n★ ship the thing, for dk\n\n## Milestones\n\n1. first → bd-1\n",
 		".githooks/pre-commit":               "#!/bin/sh\nexit 0\n",
 		".githooks/pre-push":                 "#!/bin/sh\nexit 0\n",
