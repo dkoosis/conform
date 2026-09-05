@@ -38,6 +38,9 @@ var ErrNotFound = errNotFound
 // v0.2.0 test hooks.
 var CheckPRTemplate = checkPRTemplate
 
+// CheckReadme is the readme rule's verify half (sd-mzgy.5).
+var CheckReadme = checkReadme
+
 // RootStrayNames lists the files root-minimal flags, for the per-file test.
 func RootStrayNames() []string {
 	names := make([]string, 0, len(rootStrays))
