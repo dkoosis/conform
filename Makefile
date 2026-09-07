@@ -19,6 +19,12 @@ include .sandbox/lib/Makefile.cross.mk
 # waiting, which cascades across parallel sessions/worktrees).
 GOLANGCILINT := bash scripts/lint-locked
 
+# 12-char rev stamped into the binary at install time; `conform version`
+# prints it. A plain `go build` with no ldflags leaves main.version at its
+# "unknown" default.
+VERSION := $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
+LDFLAGS := -X main.version=$(VERSION)
+
 help: ## Show this help
 	@printf '\n\033[1mFour verbs. Identical in every dkoosis repo.\033[0m\n\n'
 	@printf '  \033[36mcheck \033[0m  fast gate — vet + lint + test + build. Pre-commit; required in CI.\n'
@@ -81,8 +87,8 @@ nilcheck: ## Run nilaway (skips if not installed)
 ## doctor target provided by .sandbox/lib/Makefile.doctor.mk (project.conf-driven)
 ## cross / cross-amd64 / cross-arm64 provided by .sandbox/lib/Makefile.cross.mk
 
-install: ## Install conform to GOPATH/bin
-	go install ./cmd/conform
+install: ## Install conform to GOPATH/bin (version-stamped)
+	go install -ldflags "$(LDFLAGS)" ./cmd/conform
 
 deploy: build install ## Build, then install conform to GOPATH/bin
 	@echo "=== deployed (conform installed to $$(go env GOPATH)/bin) ==="
