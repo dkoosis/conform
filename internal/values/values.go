@@ -38,6 +38,12 @@ type Values struct {
 	Exceptions []Exception `json:"exceptions"`
 }
 
+// CandidatePaths are the repo-relative locations conform looks for the
+// values file, in search order: the historical root location, then docs/ —
+// the fleet's home for every doc file except README.md. A repo declares the
+// file at whichever location it has adopted; the first one found wins.
+var CandidatePaths = []string{"conform.json", "docs/conform.json"}
+
 var (
 	// ErrInvalidProfile marks a profile field that is neither "tool" nor
 	// "lib" (including empty/missing).

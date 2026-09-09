@@ -3,7 +3,10 @@
 // generically for the whole fleet. Whatever ferret can't state generically
 // becomes a per-repo value, and every value carries a reason.
 //
-// Every dkoosis fleet repo declares a conform.json at its root:
+// Every dkoosis fleet repo declares a conform.json — at its root (the
+// historical default) or, for a repo that keeps every doc but README.md
+// under docs/, at docs/conform.json. See CandidatePaths; the loader tries
+// each in order and uses the first one present:
 //
 //	{
 //	  "profile": "tool",
