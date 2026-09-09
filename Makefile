@@ -86,6 +86,11 @@ install: ## Install conform to GOPATH/bin
 
 deploy: build install ## Build, then install conform to GOPATH/bin
 	@echo "=== deployed (conform installed to $$(go env GOPATH)/bin) ==="
+	@gobin="$$(go env GOPATH)/bin/conform"; \
+	active="$$(command -v conform 2>/dev/null)"; \
+	if [ -n "$$active" ] && [ "$$active" != "$$gobin" ]; then \
+		echo "warning: PATH resolves conform to $$active, not $$gobin — shadowed install"; \
+	fi
 
 clean: ## Remove built binary + sandbox build artifacts
 	@rm -f conform
