@@ -41,6 +41,13 @@ var CheckPRTemplate = checkPRTemplate
 // CheckReadme is the readme rule's verify half (sd-mzgy.5).
 var CheckReadme = checkReadme
 
+// CheckAgentsStub is the agents-stub rule (sd-9uw2).
+var CheckAgentsStub = checkAgentsStub
+
+// AgentsLineCap exposes the body ceiling so the test states the same number
+// the check enforces rather than a copy that can drift.
+const AgentsLineCap = agentsLineCap
+
 // RootStrayNames lists the files root-minimal flags, for the per-file test.
 func RootStrayNames() []string {
 	names := make([]string, 0, len(rootStrays))

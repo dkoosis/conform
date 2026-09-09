@@ -58,6 +58,7 @@ const (
 	RuleRoadmap      = "roadmap"           // ROADMAP.md present, carrying a ★ destination line
 	RuleRootMinimal  = "root-minimal"      // no CLAUDE.md / ROADMAP.md / conform.json / NORTH_STAR.md at the root
 	RuleSandboxLib   = "sandbox-lib"       // .sandbox/lib matches the canonical copy conform ships
+	RuleAgentsStub   = "agents-stub"       // root AGENTS.md stays a pointer, never content
 )
 
 // Finding is one contract violation: which file, which rule, what to run.
@@ -90,6 +91,7 @@ func Run(dir string) []Finding {
 	findings = append(findings, checkReadme(dir)...)
 	findings = append(findings, checkRoadmap(dir)...)
 	findings = append(findings, checkRootMinimal(dir)...)
+	findings = append(findings, checkAgentsStub(dir)...)
 	findings = append(findings, checkSandboxLib(dir)...)
 
 	findings = applyExceptions(findings, vals)
