@@ -41,6 +41,11 @@ var (
 	targetLine = regexp.MustCompile(`^([A-Za-z0-9_][A-Za-z0-9_.-]*)\s*:($|[^=].*)`)
 )
 
+// makefileFile is the top-level Makefile every check and repair in this file
+// (and the pin and scaffold rules) names — one constant so a rename can't
+// leave a stray literal behind.
+const makefileFile = "Makefile"
+
 type mkTarget struct {
 	name    string
 	prereqs []string
@@ -90,11 +95,10 @@ func requiredVerbs(profile values.Profile) []string {
 // checkMakefile enforces the verb contract (makefile-verbs) and ## doc
 // coverage (makefile-docs) on the top-level Makefile.
 func checkMakefile(dir string, profile values.Profile) []Finding {
-	const file = "Makefile"
-	data, err := os.ReadFile(filepath.Join(dir, file))
+	data, err := os.ReadFile(filepath.Join(dir, makefileFile))
 	if err != nil {
 		return []Finding{{
-			File:   file,
+			File:   makefileFile,
 			Rule:   RuleMakefileVerb,
 			Msg:    "no top-level Makefile — the four-verb contract (check · audit · deploy · help) has no home",
 			Repair: "copy the reference Makefile from ferret and adapt targets",
@@ -138,7 +142,7 @@ func floorFindings(byName map[string]mkTarget, profile values.Profile, crossIncl
 	var findings []Finding
 	if len(missing) > 0 {
 		findings = append(findings, Finding{
-			File:   "Makefile",
+			File:   makefileFile,
 			Rule:   RuleMakefileVerb,
 			Msg:    "floor targets missing: " + strings.Join(missing, ", ") + " — every Go repo answers the same targets (sd-dtxs.1 floor)",
 			Repair: "add a documented target for each (cross may come from `include .sandbox/lib/Makefile.cross.mk`)",
@@ -147,7 +151,7 @@ func floorFindings(byName map[string]mkTarget, profile values.Profile, crossIncl
 	if check, ok := byName["check"]; ok {
 		if n := len(check.prereqs); n == 0 || check.prereqs[n-1] != "selfcheck" {
 			findings = append(findings, Finding{
-				File:   "Makefile",
+				File:   makefileFile,
 				Rule:   RuleMakefileVerb,
 				Msg:    "check does not run selfcheck last — conform must grade the tree the rest of the gate passed",
 				Repair: "make selfcheck the last prerequisite of check",
@@ -163,7 +167,7 @@ func floorFindings(byName map[string]mkTarget, profile values.Profile, crossIncl
 func verbFindings(byName map[string]mkTarget, profile values.Profile) []Finding {
 	var findings []Finding
 	add := func(msg, repair string) {
-		findings = append(findings, Finding{File: "Makefile", Rule: RuleMakefileVerb, Msg: msg, Repair: repair})
+		findings = append(findings, Finding{File: makefileFile, Rule: RuleMakefileVerb, Msg: msg, Repair: repair})
 	}
 
 	for _, verb := range requiredVerbs(profile) {
@@ -215,7 +219,7 @@ func docFindings(targets []mkTarget) []Finding {
 	}
 	sort.Strings(undocumented)
 	return []Finding{{
-		File:   "Makefile",
+		File:   makefileFile,
 		Rule:   RuleMakefileDocs,
 		Msg:    "targets without a ## doc comment: " + strings.Join(undocumented, ", ") + " — they vanish from make help",
 		Repair: `append "## <one-line purpose>" to each target line`,

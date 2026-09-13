@@ -138,7 +138,7 @@ type artifact struct {
 var baseArtifacts = []artifact{
 	{path: ReadmeFile, mode: 0o644, body: renderReadme},
 	{path: ValuesFile, mode: 0o644, body: renderValuesFile},
-	{path: "Makefile", mode: 0o644, body: renderMakefile},
+	{path: makefileFile, mode: 0o644, body: renderMakefile},
 	{path: ".golangci.yml", mode: 0o644, body: renderGolangci},
 	{path: pinFile, mode: 0o644, body: renderProjectConf},
 	{path: ciGateFile, mode: 0o644, body: renderCheckWorkflow},
