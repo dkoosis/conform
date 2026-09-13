@@ -138,7 +138,7 @@ type artifact struct {
 var baseArtifacts = []artifact{
 	{path: ReadmeFile, mode: 0o644, body: renderReadme},
 	{path: ValuesFile, mode: 0o644, body: renderValuesFile},
-	{path: "Makefile", mode: 0o644, body: renderMakefile},
+	{path: makefileFile, mode: 0o644, body: renderMakefile},
 	{path: ".golangci.yml", mode: 0o644, body: renderGolangci},
 	{path: pinFile, mode: 0o644, body: renderProjectConf},
 	{path: ciGateFile, mode: 0o644, body: renderCheckWorkflow},
@@ -253,7 +253,7 @@ func renderMakefile(spec ScaffoldSpec) string {
 	b.WriteString("SHELL := /bin/bash\n")
 	b.WriteString(".SHELLFLAGS := -euo pipefail -c\n\n")
 
-	phony := append(requiredVerbs(spec.Profile), checkFloor...)
+	phony := append(requiredVerbs(spec.Profile), floorTargets(spec.Profile)...)
 	fmt.Fprintf(&b, ".PHONY: %s\n\n", strings.Join(phony, " "))
 
 	// The verbs, in contract order. help is rendered from the same list it
@@ -262,7 +262,7 @@ func renderMakefile(spec ScaffoldSpec) string {
 	fmt.Fprintf(&b, "help: ## Show this help — the %d verbs, identical in every dkoosis repo\n", len(verbs))
 	b.WriteString("\t@awk 'BEGIN {FS = \":.*##\"} /^[a-zA-Z0-9_.-]+:.*?## / { printf \"  \\033[36m%-14s\\033[0m %s\\n\", $$1, $$2 }' $(MAKEFILE_LIST)\n\n")
 
-	fmt.Fprintf(&b, "check: %s ## Fast gate — %s. Pre-commit; required in CI.\n",
+	fmt.Fprintf(&b, "check: %s selfcheck ## Fast gate — %s, then conform last. Pre-commit; required in CI.\n",
 		strings.Join(checkFloor, " "), strings.Join(checkFloor, " + "))
 	b.WriteString("\t@echo \"=== check pass ===\"\n\n")
 
@@ -270,9 +270,18 @@ func renderMakefile(spec ScaffoldSpec) string {
 	b.WriteString("\t@echo \"=== audit pass ===\"\n\n")
 
 	if slices.Contains(verbs, "deploy") {
-		b.WriteString("deploy: build ## Build, then install this tool locally\n")
+		b.WriteString("deploy: install ## Build, then install this tool locally\n")
+		b.WriteString("\t@echo \"=== deploy pass ===\"\n\n")
+		b.WriteString("install: build ## Install this tool into GOBIN\n")
 		fmt.Fprintf(&b, "\tgo install ./cmd/%s\n\n", spec.Repo)
+		b.WriteString("cross: ## Cross-compile linux-amd64 and linux-arm64 into .sandbox/bin/\n")
+		fmt.Fprintf(&b, "\tfor a in amd64 arm64; do mkdir -p .sandbox/bin/linux-$$a && CGO_ENABLED=0 GOOS=linux GOARCH=$$a go build -o .sandbox/bin/linux-$$a/ ./cmd/%s; done\n\n", spec.Repo)
 	}
+
+	b.WriteString("selfcheck: ## Run conform (fleet SDLC checker) against this repo\n")
+	b.WriteString("\tconform\n\n")
+	b.WriteString("clean: ## Remove build outputs\n")
+	b.WriteString("\trm -rf bin .sandbox/bin\n\n")
 
 	// The internal steps check composes. Rendering them from checkFloor
 	// keeps the two in step: a floor entry with no target would fail the
