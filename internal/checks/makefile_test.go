@@ -54,6 +54,20 @@ func TestMakefile_Violations(t *testing.T) {
 			wantMsg:  "fuzz",
 		},
 		{
+			name:     "tool floor target missing",
+			makefile: strings.Replace(goodMakefile, "clean: ## Remove build outputs\n", "", 1),
+			profile:  values.ProfileTool,
+			wantRule: checks.RuleMakefileVerb,
+			wantMsg:  "floor targets missing: clean",
+		},
+		{
+			name:     "check does not run selfcheck last",
+			makefile: strings.Replace(goodMakefile, "check: vet lint test build selfcheck", "check: vet lint selfcheck test build", 1),
+			profile:  values.ProfileTool,
+			wantRule: checks.RuleMakefileVerb,
+			wantMsg:  "selfcheck last",
+		},
+		{
 			name:     "no Makefile at all",
 			makefile: "",
 			profile:  values.ProfileTool,
@@ -100,9 +114,19 @@ func TestMakefile_Conforming(t *testing.T) {
 		t.Errorf("conforming tool Makefile produced findings: %v", findings)
 	}
 
+	// A lib needs no install or cross: strip both along with deploy.
 	lib := strings.Replace(goodMakefile, "deploy: build ## Install locally\n", "", 1)
+	lib = strings.Replace(lib, "install: ## Install into GOBIN\n", "", 1)
+	lib = strings.Replace(lib, "cross: ## Cross-compile linux-amd64 and linux-arm64\n", "", 1)
 	dir = writeRepo(t, map[string]string{"Makefile": lib})
 	if findings := checks.CheckMakefile(dir, values.ProfileLib); len(findings) != 0 {
 		t.Errorf("conforming lib Makefile produced findings: %v", findings)
+	}
+
+	// cross may come from the shared sandbox include instead of a top-level target.
+	viaInclude := strings.Replace(goodMakefile, "cross: ## Cross-compile linux-amd64 and linux-arm64\n", "include .sandbox/lib/Makefile.cross.mk\n", 1)
+	dir = writeRepo(t, map[string]string{"Makefile": viaInclude})
+	if findings := checks.CheckMakefile(dir, values.ProfileTool); len(findings) != 0 {
+		t.Errorf("cross via the sandbox include produced findings: %v", findings)
 	}
 }

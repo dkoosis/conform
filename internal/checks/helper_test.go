@@ -12,7 +12,7 @@ import (
 const goodMakefile = `.DEFAULT_GOAL := check
 GOLANGCILINT := bash scripts/lint-locked
 
-check: vet lint test build ## Fast validation: vet + lint + test + build
+check: vet lint test build selfcheck ## Fast validation: vet + lint + test + build, then conform
 audit: check race ## Exhaustive validation
 deploy: build ## Install locally
 help: ## Show this help
@@ -21,6 +21,11 @@ lint: ## Run golangci-lint
 test: ## Run tests
 build: ## Compile
 race: ## Race detector
+vuln: ## Vulnerability scan
+selfcheck: ## Run conform
+clean: ## Remove build outputs
+install: ## Install into GOBIN
+cross: ## Cross-compile linux-amd64 and linux-arm64
 `
 
 // goodGolangci carries the baseline floor and nothing that trips it.
