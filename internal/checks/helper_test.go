@@ -48,7 +48,19 @@ const goodCheckYML = `name: check
 on:
   pull_request:
 jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      run_check: ${{ steps.diff.outputs.run_check }}
+    steps:
+      - id: diff
+        run: |
+          run_check="$(git diff --name-status "$base" "$head" | awk -F'\t' '
+            $2 !~ /(\.md$|^docs\/|^\.beads\/|^\.claude\/|^\.gitignore$|^LICENSE$)/ { print "true"; exit }
+          ')"
+          echo "run_check=${run_check:-false}" >> "$GITHUB_OUTPUT"
   check:
+    needs: detect
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,6 +69,7 @@ jobs:
           . ./.sandbox/project.conf
           install-golangci "$GOLANGCI_LINT_VERSION"
       - name: check
+        if: needs.detect.outputs.run_check == 'true'
         run: make check
       - name: race
         run: make race
