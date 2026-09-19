@@ -4,6 +4,9 @@
 #
 # Reads PROJECT_BINS and PREBUILT_TOOLS from project.conf.
 # Version pins below are defaults — override in your Makefile before the include.
+# Recipes run under make's default /bin/sh (dash on Linux): POSIX sh only, no pipefail.
+# ✗ SHELL := bash here — it would leak into every consumer's recipes, and .SHELLFLAGS
+# needs GNU make >= 3.82 (macOS ships 3.81).
 
 GOLANGCI_LINT_VER ?= v2.12.2
 GO_ARCH_LINT_VER  ?= v1.15.0
@@ -32,7 +35,7 @@ cross-arm64: ## Cross-compile linux/arm64 sandbox tools
 
 _cross-build:
 	@# Pre-flight: local Go must be >= go.mod target
-	@set -o pipefail; LOCAL_GO=$$(go version | sed 's/.*go\([0-9]*\.[0-9]*\).*/\1/'); \
+	@LOCAL_GO=$$(go version | sed 's/.*go\([0-9]*\.[0-9]*\).*/\1/'); \
 	MOD_MIN=$$(echo $(GOMOD_VER) | cut -d. -f1)$$(printf '%03d' $$(echo $(GOMOD_VER) | cut -d. -f2)); \
 	LOC_MIN=$$(echo $$LOCAL_GO | cut -d. -f1)$$(printf '%03d' $$(echo $$LOCAL_GO | cut -d. -f2)); \
 	if [ "$$LOC_MIN" -lt "$$MOD_MIN" ]; then \
@@ -42,7 +45,7 @@ _cross-build:
 	echo "  local go$$LOCAL_GO >= go.mod go$(GOMOD_VER) — ok"
 	@mkdir -p $(SANDBOX_BIN_DIR)/linux-$(CROSS_ARCH)
 	@# All tool installs go here; use shell var instead of $(eval) to avoid parse-time trap
-	@set -o pipefail; . .sandbox/project.conf; \
+	@. .sandbox/project.conf; \
 	xtool_build() { \
 		tmpmod=$$(mktemp -d) && \
 		( cd "$$tmpmod" && go mod init xtool >/dev/null 2>&1 && \
@@ -143,7 +146,7 @@ _cross-build:
 		esac; \
 	done
 	@# UPX compress (verify compressed binary runs to catch musl/kernel issues)
-	@set -o pipefail; if command -v upx >/dev/null 2>&1; then \
+	@if command -v upx >/dev/null 2>&1; then \
 		echo "-- upx compressing"; \
 		for f in $(SANDBOX_BIN_DIR)/linux-$(CROSS_ARCH)/*; do \
 			[ -f "$$f" ] || continue; \
@@ -167,4 +170,4 @@ _cross-build:
 	fi
 	@echo "-- result:"
 	@du -sh $(SANDBOX_BIN_DIR)/linux-$(CROSS_ARCH)/
-	@set -o pipefail; du -h $(SANDBOX_BIN_DIR)/linux-$(CROSS_ARCH)/* | sort -rh
+	@du -h $(SANDBOX_BIN_DIR)/linux-$(CROSS_ARCH)/* | sort -rh
