@@ -39,3 +39,7 @@ ferret-j33/
 
 # bd audit residue: passive re-export, Dolt is source of truth
 .beads/interactions.jsonl
+.claude/pr-dossier.json
+.claude/pr-verdict.json
+.claude/pr-verdict.md
+.claude/worktrees/
