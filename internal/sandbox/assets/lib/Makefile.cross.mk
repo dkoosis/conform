@@ -41,9 +41,11 @@ cross-arm64: ## Cross-compile linux/arm64 sandbox tools
 
 _cross-build:
 	@# Pre-flight: local Go must be >= go.mod target
-	@LOCAL_GO=$$(go version | sed 's/.*go\([0-9]*\.[0-9]*\).*/\1/'); \
-	MOD_MIN=$$(echo $(GOMOD_VER) | cut -d. -f1)$$(printf '%03d' $$(echo $(GOMOD_VER) | cut -d. -f2)); \
-	LOC_MIN=$$(echo $$LOCAL_GO | cut -d. -f1)$$(printf '%03d' $$(echo $$LOCAL_GO | cut -d. -f2)); \
+	@LOCAL_GO=$$(go env GOVERSION); LOCAL_GO=$${LOCAL_GO#go}; \
+	L_MAJ=$${LOCAL_GO%%.*}; L_REST=$${LOCAL_GO#*.}; L_MIN=$${L_REST%%.*}; L_MIN=$${L_MIN%%[!0-9]*}; LOCAL_GO=$$L_MAJ.$$L_MIN; \
+	M_VER=$(GOMOD_VER); M_MAJ=$${M_VER%%.*}; M_REST=$${M_VER#*.}; \
+	MOD_MIN=$$M_MAJ$$(printf '%03d' $${M_REST%%.*}); \
+	LOC_MIN=$$L_MAJ$$(printf '%03d' $$L_MIN); \
 	if [ "$$LOC_MIN" -lt "$$MOD_MIN" ]; then \
 		echo "FATAL: local go$$LOCAL_GO < go.mod go$(GOMOD_VER)"; \
 		exit 1; \
@@ -132,9 +134,9 @@ _cross-build:
 					"https://github.com/sharkdp/hyperfine/releases/download/$(HYPERFINE_VER)/hyperfine-$(HYPERFINE_VER)-$$HF_TRIPLE.tar.gz" \
 					-o "$$TMP/a.tgz" && \
 				if command -v sha256sum >/dev/null 2>&1; then \
-					HF_GOT=$$(sha256sum "$$TMP/a.tgz" | cut -d' ' -f1); \
+					set -- $$(sha256sum "$$TMP/a.tgz"); HF_GOT=$$1; \
 				else \
-					HF_GOT=$$(shasum -a 256 "$$TMP/a.tgz" | cut -d' ' -f1); \
+					set -- $$(shasum -a 256 "$$TMP/a.tgz"); HF_GOT=$$1; \
 				fi; \
 				if [ "$$HF_GOT" != "$$HF_SHA256" ]; then \
 					echo "FATAL: hyperfine $(CROSS_ARCH) sha256 mismatch: got $$HF_GOT, want $$HF_SHA256"; \
@@ -168,18 +170,18 @@ _cross-build:
 		echo "-- upx compressing"; \
 		for f in $(SANDBOX_BIN_DIR)/linux-$(CROSS_ARCH)/*; do \
 			[ -f "$$f" ] || continue; \
-			case "$$f" in *.tmp|*.upx) rm -f "$$f"; continue;; esac; \
-			file "$$f" | grep -q ELF || continue; \
-			BEFORE=$$(du -h "$$f" | cut -f1); \
+			case "$$f" in *.tmp) rm -f "$$f"; continue;; *.upx) rm -f "$$f"; continue;; esac; \
+			case "$$(file "$$f")" in *ELF*) ;; *) continue;; esac; \
+			set -- $$(du -h "$$f"); BEFORE=$$1; \
 			if upx -t "$$f" >/dev/null 2>&1; then \
 				echo "  $$(basename $$f): $$BEFORE (already packed)"; \
 				continue; \
 			fi; \
 			cp "$$f" "$$f.tmp" && \
 			upx -q --best --no-backup "$$f.tmp" >/dev/null 2>&1 && \
-			file "$$f.tmp" | grep -q ELF && { \
+			case "$$(file "$$f.tmp")" in *ELF*) true;; *) false;; esac && { \
 				mv "$$f.tmp" "$$f"; \
-				AFTER=$$(du -h "$$f" | cut -f1); \
+				set -- $$(du -h "$$f"); AFTER=$$1; \
 				echo "  $$(basename $$f): $$BEFORE -> $$AFTER"; \
 			} || { rm -f "$$f.tmp"; echo "  $$(basename $$f): $$BEFORE (skipped — upx failed or produced invalid binary)"; }; \
 		done; \
@@ -188,4 +190,4 @@ _cross-build:
 	fi
 	@echo "-- result:"
 	@du -sh $(SANDBOX_BIN_DIR)/linux-$(CROSS_ARCH)/
-	@du -h $(SANDBOX_BIN_DIR)/linux-$(CROSS_ARCH)/* | sort -rh
+	@ls -lhS $(SANDBOX_BIN_DIR)/linux-$(CROSS_ARCH)/
