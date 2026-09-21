@@ -61,6 +61,37 @@ func TestBothConsumersSourceTheOneEnvFile(t *testing.T) {
 	}
 }
 
+// The surmado review of dkoosis/ferret#174 and dkoosis/mnemd#167: the bat
+// download had no pinned checksum, unlike the hyperfine case beside it.
+func TestBatDownloadIsCheckedAndBounded(t *testing.T) {
+	files, err := sandbox.Files()
+	if err != nil {
+		t.Fatalf("Files: %v", err)
+	}
+	mk := string(files["Makefile.cross.mk"])
+
+	if !strings.Contains(mk, "BAT_SHA256_AMD64") || !strings.Contains(mk, "BAT_SHA256_ARM64") {
+		t.Error("Makefile.cross.mk does not pin a BAT_SHA256 per architecture")
+	}
+
+	batIdx := strings.Index(mk, "bat)")
+	if batIdx < 0 {
+		t.Fatal("Makefile.cross.mk has no bat case block")
+	}
+	hfIdx := strings.Index(mk, "hyperfine)")
+	if hfIdx < 0 {
+		t.Fatal("Makefile.cross.mk has no hyperfine case block")
+	}
+	batBlock := mk[batIdx:hfIdx]
+
+	if !strings.Contains(batBlock, "sha256 mismatch") {
+		t.Error("Makefile.cross.mk does not fail the bat download on a checksum mismatch")
+	}
+	if !strings.Contains(batBlock, "--connect-timeout") || !strings.Contains(batBlock, "--max-time") {
+		t.Error("bat's curl call is missing --connect-timeout/--max-time")
+	}
+}
+
 // The surmado review of dkoosis/ferret#173: the hyperfine download had no
 // pinned checksum, no curl timeout, and mismatched libc (musl on amd64, glibc
 // on arm64) with no explanation.
