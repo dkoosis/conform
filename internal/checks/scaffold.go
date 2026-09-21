@@ -279,7 +279,7 @@ func renderMakefile(spec ScaffoldSpec) string {
 	}
 
 	b.WriteString("selfcheck: ## Run conform-to-sdlc (fleet SDLC checker) against this repo\n")
-	b.WriteString("\tconform\n\n")
+	b.WriteString("\tconform-to-sdlc\n\n")
 	b.WriteString("clean: ## Remove build outputs\n")
 	b.WriteString("\trm -rf bin .sandbox/bin\n\n")
 
