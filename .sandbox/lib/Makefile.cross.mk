@@ -12,6 +12,7 @@ GOFUMPT_VER       ?= v0.9.2
 GOIMPORTS_VER     ?= v0.39.0
 MAGE_VER          ?= v1.15.0
 BAT_VER           ?= v0.25.0
+HYPERFINE_VER     ?= v1.20.0
 SNIPE_SRC         ?= $(HOME)/Projects/snipe
 FO_SRC            ?= $(HOME)/Projects/fo
 GOMOD_VER         := $(shell awk '/^go /{print $$2}' go.mod)
@@ -106,6 +107,21 @@ _cross-build:
 				curl -fsSL "https://github.com/sharkdp/bat/releases/download/$(BAT_VER)/bat-$(BAT_VER)-$$BAT_TRIPLE.tar.gz" \
 					| tar xz -C "$$TMP" && \
 				cp "$$TMP"/bat-*/bat $(SANDBOX_BIN_DIR)/linux-$(CROSS_ARCH)/bat && \
+				rm -rf "$$TMP"; \
+			fi ;; \
+		hyperfine) \
+			echo "-- hyperfine $(HYPERFINE_VER)"; \
+			if [ -f "$(SANDBOX_BIN_DIR)/linux-$(CROSS_ARCH)/hyperfine" ]; then \
+				echo "  (exists, skipping)"; \
+			else \
+				case "$(CROSS_ARCH)" in \
+					amd64) HF_TRIPLE="x86_64-unknown-linux-musl" ;; \
+					arm64) HF_TRIPLE="aarch64-unknown-linux-gnu" ;; \
+				esac; \
+				TMP=$$(mktemp -d); \
+				curl -fsSL "https://github.com/sharkdp/hyperfine/releases/download/$(HYPERFINE_VER)/hyperfine-$(HYPERFINE_VER)-$$HF_TRIPLE.tar.gz" \
+					| tar xz -C "$$TMP" && \
+				cp "$$TMP"/hyperfine-*/hyperfine $(SANDBOX_BIN_DIR)/linux-$(CROSS_ARCH)/hyperfine && \
 				rm -rf "$$TMP"; \
 			fi ;; \
 		go-arch-lint) \
