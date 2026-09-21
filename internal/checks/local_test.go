@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dkoosis/conform/internal/checks"
+	"github.com/dkoosis/conform-to-sdlc/internal/checks"
 )
 
 // delegatingHook carries the beads-managed block marker the bd-hooks and

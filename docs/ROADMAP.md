@@ -1,8 +1,8 @@
-# conform
+# conform-to-sdlc
 
 ★ every dkoosis repo runs the same SDLC because one checker says so, not because someone copied a template.
 
-conform is the fleet's contract, checked instead of copied. A repo adopts an
+conform-to-sdlc is the fleet's contract, checked instead of copied. A repo adopts an
 improvement by bumping a pin, not by re-pasting a Makefile; a rule that would
 be too noisy to hard-fail is deleted rather than warned. This file is the
 destination — the ★ line above, the ordered milestones below, and a link to
@@ -13,8 +13,8 @@ joined against the epic ids below.
 ## Milestones
 
 1. Three surfaces, dogfooded — in-repo files, machine-local wiring, and
-   GitHub-side settings, with conform's own CI running conform → `cfm-1e1`
-2. The fleet adopts it — all 13 Go repos call conform from `make check` and
+   GitHub-side settings, with conform-to-sdlc's own CI running conform-to-sdlc → `cfm-1e1`
+2. The fleet adopts it — all 13 Go repos call conform-to-sdlc from `make check` and
    go red when the pin is removed → `sd-th5`
 3. A rule change propagates as a pin bump — one deliberate change turns the
    fleet red, then green again as 13 pin-bump PRs merge → `sd-th5.22`

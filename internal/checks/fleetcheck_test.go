@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dkoosis/conform/internal/checks"
+	"github.com/dkoosis/conform-to-sdlc/internal/checks"
 )
 
 // ghStub answers gh API paths from a canned map; absent path = 404.
@@ -36,7 +36,7 @@ func conformingRepoResponses(full string) map[string]string {
 // allFleetResponses maps every roster repo to the same canned answers.
 func allFleetResponses(shape func(full string) map[string]string) map[string]string {
 	responses := map[string]string{}
-	for _, name := range []string{"ferret", "snipe", "trixi-bot", "itzy", "canapay", "fo", "loto", "strand", "npharvester", "trixi", "atomicfile", "keyring", "next", "conform"} {
+	for _, name := range []string{"ferret", "snipe", "trixi-bot", "itzy", "canapay", "fo", "loto", "strand", "npharvester", "trixi", "atomicfile", "keyring", "next", "conform-to-sdlc"} {
 		maps.Copy(responses, shape("dkoosis/"+name))
 	}
 	return responses

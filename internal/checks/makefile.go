@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/dkoosis/conform/internal/values"
+	"github.com/dkoosis/conform-to-sdlc/internal/values"
 )
 
 // The four-verb contract: check · audit · deploy · help, identical in every
@@ -129,7 +129,7 @@ func floorTargets(profile values.Profile) []string {
 }
 
 // floorFindings enforces the target floor (makefile-verbs): every floor
-// target exists, and `check` runs selfcheck last so conform grades the tree
+// target exists, and `check` runs selfcheck last so conform-to-sdlc grades the tree
 // the rest of the gate just passed.
 func floorFindings(byName map[string]mkTarget, profile values.Profile, crossIncluded bool) []Finding {
 	var missing []string
@@ -153,7 +153,7 @@ func floorFindings(byName map[string]mkTarget, profile values.Profile, crossIncl
 			findings = append(findings, Finding{
 				File:   makefileFile,
 				Rule:   RuleMakefileVerb,
-				Msg:    "check does not run selfcheck last — conform must grade the tree the rest of the gate passed",
+				Msg:    "check does not run selfcheck last — conform-to-sdlc must grade the tree the rest of the gate passed",
 				Repair: "make selfcheck the last prerequisite of check",
 			})
 		}

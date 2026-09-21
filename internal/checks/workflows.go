@@ -11,7 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// workflow is the subset of a GitHub Actions file conform reads. yaml.v3
+// workflow is the subset of a GitHub Actions file conform-to-sdlc reads. yaml.v3
 // resolves a plain `on` key as the string "on" (YAML 1.2), so no key
 // gymnastics are needed.
 type workflow struct {
@@ -73,7 +73,7 @@ func checkCIDocsSkip(dir string) []Finding {
 			File:   file,
 			Rule:   RuleCIDocsSkip,
 			Msg:    fmt.Sprintf("on.%s carries a workflow-level path filter — a skipped workflow never reports the required check context, so a docs-only PR cannot merge", event),
-			Repair: "delete the paths/paths-ignore key; decide docs-only in a detect job instead (see `conform --fix` on a repo with no check.yml for the shape)",
+			Repair: "delete the paths/paths-ignore key; decide docs-only in a detect job instead (see `conform-to-sdlc --fix` on a repo with no check.yml for the shape)",
 		})
 	}
 
@@ -82,8 +82,8 @@ func checkCIDocsSkip(dir string) []Finding {
 		findings = append(findings, Finding{
 			File:   file,
 			Rule:   RuleCIDocsSkip,
-			Msg:    fmt.Sprintf("detect job %q widens the docs-only set with %q — a repo may narrow conform's set, never widen it", w.job, w.alt),
-			Repair: fmt.Sprintf("remove %q from the job's awk regex; conform's set is %s", w.alt, renderDocsOnlyRegex()),
+			Msg:    fmt.Sprintf("detect job %q widens the docs-only set with %q — a repo may narrow conform-to-sdlc's set, never widen it", w.job, w.alt),
+			Repair: fmt.Sprintf("remove %q from the job's awk regex; conform-to-sdlc's set is %s", w.alt, renderDocsOnlyRegex()),
 		})
 	}
 	if !guarded {
@@ -91,7 +91,7 @@ func checkCIDocsSkip(dir string) []Finding {
 			File:   file,
 			Rule:   RuleCIDocsSkip,
 			Msg:    "no job decides docs-only before make check runs — a docs-only PR pays the full gate",
-			Repair: "mv " + file + " check.yml.old && conform --fix, then port the old file's extra steps behind the detect guard",
+			Repair: "mv " + file + " check.yml.old && conform-to-sdlc --fix, then port the old file's extra steps behind the detect guard",
 		})
 	}
 	return findings
@@ -101,7 +101,7 @@ type widening struct{ job, alt string }
 
 // docsSkipGuard reports whether some make check step waits on a needed job
 // that carries a docs-only regex, and every alternative in such a regex that
-// conform's docsOnlyPaths does not list.
+// conform-to-sdlc's docsOnlyPaths does not list.
 func docsSkipGuard(wf *workflow) (guarded bool, widened []widening) {
 	for _, need := range gateGuards(wf) {
 		alts := detectSets(wf.Jobs[need])

@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dkoosis/conform/internal/checks"
-	"github.com/dkoosis/conform/internal/values"
+	"github.com/dkoosis/conform-to-sdlc/internal/checks"
+	"github.com/dkoosis/conform-to-sdlc/internal/values"
 )
 
 func TestMakefile_Violations(t *testing.T) {

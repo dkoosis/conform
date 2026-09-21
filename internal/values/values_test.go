@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dkoosis/conform/internal/values"
+	"github.com/dkoosis/conform-to-sdlc/internal/values"
 )
 
 func TestLoad_Valid(t *testing.T) {
@@ -151,7 +151,7 @@ func TestLoad_Invalid(t *testing.T) {
 	}
 }
 
-// TestLoad_Dogfood pins conform's own docs/conform.json against this
+// TestLoad_Dogfood pins conform-to-sdlc's own docs/conform.json against this
 // package's schema — the loader must be able to parse the file it exists to
 // validate.
 func TestLoad_Dogfood(t *testing.T) {

@@ -5,14 +5,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dkoosis/conform/internal/checks"
+	"github.com/dkoosis/conform-to-sdlc/internal/checks"
 )
 
 // goodMakefile satisfies the four-verb contract for the tool profile.
 const goodMakefile = `.DEFAULT_GOAL := check
 GOLANGCILINT := bash scripts/lint-locked
 
-check: vet lint test build selfcheck ## Fast validation: vet + lint + test + build, then conform
+check: vet lint test build selfcheck ## Fast validation: vet + lint + test + build, then conform-to-sdlc
 audit: check race ## Exhaustive validation
 deploy: build ## Install locally
 help: ## Show this help
@@ -22,7 +22,7 @@ test: ## Run tests
 build: ## Compile
 race: ## Race detector
 vuln: ## Vulnerability scan
-selfcheck: ## Run conform
+selfcheck: ## Run conform-to-sdlc
 clean: ## Remove build outputs
 install: ## Install into GOBIN
 cross: ## Cross-compile linux-amd64 and linux-arm64

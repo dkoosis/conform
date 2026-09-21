@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dkoosis/conform/internal/sandbox"
+	"github.com/dkoosis/conform-to-sdlc/internal/sandbox"
 )
 
 // requiredFiles are the library members every fleet repo must carry. lib-env.sh
@@ -107,6 +107,6 @@ func TestSyncOverwritesDriftAndSparesForeignFiles(t *testing.T) {
 		t.Errorf("Sync changed %v, want only lib-env.sh", changed)
 	}
 	if body, err := os.ReadFile(foreign); err != nil || string(body) != "# mine\n" {
-		t.Errorf("Sync clobbered a file conform does not own: %q, %v", body, err)
+		t.Errorf("Sync clobbered a file conform-to-sdlc does not own: %q, %v", body, err)
 	}
 }
