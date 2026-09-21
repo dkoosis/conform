@@ -18,6 +18,14 @@ var (
 	CheckRootMinimal  = checkRootMinimal
 )
 
+// CheckHookExitDiscard is the hook-exit-discard rule's directory-scanning
+// half (cfm-531); HookExitDiscardFindings is the line-level detector a test
+// can replay a fixture script's exact content through.
+var (
+	CheckHookExitDiscard    = checkHookExitDiscard
+	HookExitDiscardFindings = hookExitDiscardFindings
+)
+
 // Surface-2 test hooks.
 var (
 	CheckHooksPathFn = checkHooksPath
