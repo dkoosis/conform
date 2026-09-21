@@ -1,6 +1,6 @@
 # conform-to-sdlc
 
-★ every dkoosis repo runs the same SDLC because one checker says so, not because someone copied a template.
+★ One program, pinned in every dkoosis Go repo, fails `make check` when that repo's setup — Makefile targets, lint rules, CI workflow, git hooks, bd config, GitHub settings — drifts from the fleet standard, and names the command that puts it back.
 
 conform-to-sdlc is the fleet's contract, checked instead of copied. A repo adopts an
 improvement by bumping a pin, not by re-pasting a Makefile; a rule that would
