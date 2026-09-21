@@ -60,6 +60,7 @@ const (
 	RuleSandboxLib   = "sandbox-lib"       // .sandbox/lib matches the canonical copy conform-to-sdlc ships
 	RuleAgentsStub   = "agents-stub"       // root AGENTS.md stays a pointer, never content
 	RuleCIDocsSkip   = "ci-docs-skip"      // a detect job lets a docs-only PR skip make check, context kept
+	RuleVocabulary   = "vocabulary-file"   // .claude/rules/vocabulary.md present; content unchecked
 )
 
 // Finding is one contract violation: which file, which rule, what to run.
@@ -95,6 +96,7 @@ func Run(dir string) []Finding {
 	findings = append(findings, checkRootMinimal(dir)...)
 	findings = append(findings, checkAgentsStub(dir)...)
 	findings = append(findings, checkSandboxLib(dir)...)
+	findings = append(findings, checkVocabulary(dir)...)
 
 	findings = applyExceptions(findings, vals)
 	sort.SliceStable(findings, func(i, j int) bool {
