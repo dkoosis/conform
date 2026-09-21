@@ -203,3 +203,18 @@ func TestScaffoldSpecDefaults(t *testing.T) {
 		t.Error("LintPin empty — the pin rule has nothing to read")
 	}
 }
+
+// TestScaffoldSelfcheckRunsThisTool: a scaffolded repo's selfcheck must call
+// the binary by its current name. The rename to conform-to-sdlc missed this
+// recipe once, and every new repo would have run a binary that no longer ships.
+func TestScaffoldSelfcheckRunsThisTool(t *testing.T) {
+	mk := renderMakefile(testSpec())
+	_, after, ok := strings.Cut(mk, "\nselfcheck:")
+	if !ok {
+		t.Fatalf("scaffolded Makefile has no selfcheck target:\n%s", mk)
+	}
+	lines := strings.SplitN(after, "\n", 3)
+	if len(lines) < 2 || lines[1] != "\tconform-to-sdlc" {
+		t.Errorf("selfcheck recipe = %q; want %q", lines[1], "\tconform-to-sdlc")
+	}
+}
