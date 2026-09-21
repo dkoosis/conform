@@ -1,6 +1,7 @@
 package checks
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -181,6 +182,96 @@ func TestBootstrapSkipsRemoteByDefault(t *testing.T) {
 func withDefaults(spec ScaffoldSpec) ScaffoldSpec {
 	spec.applyDefaults()
 	return spec
+}
+
+// TestBootstrapPlanWiresHooksPathAfterBDInit: `bd init` runs `git commit`
+// internally. If core.hooksPath already points at the tracked .githooks by
+// then, that commit fires the tracked pre-commit hook, which delegates to
+// the .beads/hooks shim bd init itself just installed — a nested `bd`
+// invocation that contends with the still-running outer `bd init` for the
+// same Dolt lock and hangs until the bootstrap timeout kills it (cfm-d4r).
+// hooksPath must be wired only once bd init is done, so its own commit
+// still uses git's default (empty, on a fresh repo) hooks.
+func TestBootstrapPlanWiresHooksPathAfterBDInit(t *testing.T) {
+	hooksPathIdx, bdInitIdx := -1, -1
+	for i, step := range BootstrapPlan(testSpec()) {
+		switch {
+		case step.Argv[0] == "git" && len(step.Argv) > 1 && step.Argv[1] == "config":
+			hooksPathIdx = i
+		case step.Argv[0] == "bd" && len(step.Argv) > 1 && step.Argv[1] == "init":
+			bdInitIdx = i
+		}
+	}
+	if hooksPathIdx == -1 || bdInitIdx == -1 {
+		t.Fatalf("plan is missing hooksPath (%d) or bd init (%d)", hooksPathIdx, bdInitIdx)
+	}
+	if hooksPathIdx < bdInitIdx {
+		t.Errorf("git config core.hooksPath (step %d) runs before bd init (step %d) — bd init's own internal commit will self-deadlock through the tracked hook chain", hooksPathIdx, bdInitIdx)
+	}
+}
+
+// TestBootstrapHoldsBackSyncRemoteForBDInit: the scaffolded .beads/config.yaml
+// declares sync.remote for a GitHub repo that need not exist yet. Real bd
+// reads that declaration before creating a store and tries to clone it,
+// exiting 1 (cfm-d4r). The fake bd below reproduces exactly that shape:
+// fail if sync.remote is declared, succeed (and clobber the file with its
+// own boilerplate) if it is not. Bootstrap must hold the declaration back
+// for the bd init call, then restore the tracked file byte-identical.
+func TestBootstrapHoldsBackSyncRemoteForBDInit(t *testing.T) {
+	dir := t.TempDir()
+	spec := withDefaults(testSpec())
+	if err := Scaffold(dir, spec); err != nil {
+		t.Fatalf("Scaffold: %v", err)
+	}
+	original, err := os.ReadFile(filepath.Join(dir, bdConfigFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bin := t.TempDir()
+	fakeBD := filepath.Join(bin, "bd")
+	script := "#!/bin/sh\n" +
+		"if [ \"$1\" = \"init\" ]; then\n" +
+		"  if grep -q '^sync\\.remote:' .beads/config.yaml 2>/dev/null; then\n" +
+		"    echo 'Error: failed to clone remote: repository not found' >&2\n" +
+		"    exit 1\n" +
+		"  fi\n" +
+		"  printf '# bd rewrites its own config.yaml on init\\nissue-prefix: \"\"\\n' > .beads/config.yaml\n" +
+		"  exit 0\n" +
+		"fi\n" +
+		"exit 0\n"
+	if err := os.WriteFile(fakeBD, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Fake bd shadows the real one; git (for `git init`/`git config`) still
+	// resolves from the rest of PATH.
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	out, err := os.CreateTemp(t.TempDir(), "out")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer out.Close()
+
+	if err := Bootstrap(context.Background(), dir, spec, BootstrapOpts{Out: out}); err != nil {
+		t.Fatalf("Bootstrap: %v", err)
+	}
+
+	data, err := os.ReadFile(out.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "run it by hand once the cause is cleared") {
+		t.Errorf("bd init still failed under Bootstrap:\n%s", data)
+	}
+
+	got, err := os.ReadFile(filepath.Join(dir, bdConfigFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, original) {
+		t.Errorf("tracked %s not restored byte-identical after bd init:\n got:  %q\nwant: %q", bdConfigFile, got, original)
+	}
 }
 
 // TestBootstrapInitCarriesThePrefix: the prefix bd refuses through `config
