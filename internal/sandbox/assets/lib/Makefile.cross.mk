@@ -16,6 +16,12 @@ GOIMPORTS_VER     ?= v0.39.0
 MAGE_VER          ?= v1.15.0
 BAT_VER           ?= v0.25.0
 HYPERFINE_VER     ?= v1.20.0
+# Pinned per architecture and checked after download (surmado review of
+# dkoosis/ferret#173: the download had no checksum). arm64 stays glibc because
+# hyperfine ships no aarch64-unknown-linux-musl release for $(HYPERFINE_VER)
+# (or any release to date) — amd64 and arm64 cannot share musl here.
+HYPERFINE_SHA256_AMD64 ?= 3285ec7959285288137043dd81dce0dde056227018a8277532d9a364b4f03c2b
+HYPERFINE_SHA256_ARM64 ?= 90875cb1db7a1d797c311174d061728361e58fc70e3b62262a00635ac3b1997c
 SNIPE_SRC         ?= $(HOME)/Projects/snipe
 FO_SRC            ?= $(HOME)/Projects/fo
 GOMOD_VER         := $(shell awk '/^go /{print $$2}' go.mod)
@@ -118,12 +124,24 @@ _cross-build:
 				echo "  (exists, skipping)"; \
 			else \
 				case "$(CROSS_ARCH)" in \
-					amd64) HF_TRIPLE="x86_64-unknown-linux-musl" ;; \
-					arm64) HF_TRIPLE="aarch64-unknown-linux-gnu" ;; \
+					amd64) HF_TRIPLE="x86_64-unknown-linux-musl"; HF_SHA256="$(HYPERFINE_SHA256_AMD64)" ;; \
+					arm64) HF_TRIPLE="aarch64-unknown-linux-gnu"; HF_SHA256="$(HYPERFINE_SHA256_ARM64)" ;; \
 				esac; \
 				TMP=$$(mktemp -d); \
-				curl -fsSL "https://github.com/sharkdp/hyperfine/releases/download/$(HYPERFINE_VER)/hyperfine-$(HYPERFINE_VER)-$$HF_TRIPLE.tar.gz" -o "$$TMP/a.tgz" && \
-					tar xz -C "$$TMP" -f "$$TMP/a.tgz" && \
+				curl -fsSL --connect-timeout 10 --max-time 60 \
+					"https://github.com/sharkdp/hyperfine/releases/download/$(HYPERFINE_VER)/hyperfine-$(HYPERFINE_VER)-$$HF_TRIPLE.tar.gz" \
+					-o "$$TMP/a.tgz" && \
+				if command -v sha256sum >/dev/null 2>&1; then \
+					HF_GOT=$$(sha256sum "$$TMP/a.tgz" | cut -d' ' -f1); \
+				else \
+					HF_GOT=$$(shasum -a 256 "$$TMP/a.tgz" | cut -d' ' -f1); \
+				fi; \
+				if [ "$$HF_GOT" != "$$HF_SHA256" ]; then \
+					echo "FATAL: hyperfine $(CROSS_ARCH) sha256 mismatch: got $$HF_GOT, want $$HF_SHA256"; \
+					rm -rf "$$TMP"; \
+					exit 1; \
+				fi; \
+				tar xz -C "$$TMP" -f "$$TMP/a.tgz" && \
 				cp "$$TMP"/hyperfine-*/hyperfine $(SANDBOX_BIN_DIR)/linux-$(CROSS_ARCH)/hyperfine && \
 				rm -rf "$$TMP"; \
 			fi ;; \
