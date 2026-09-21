@@ -61,6 +61,40 @@ func TestBothConsumersSourceTheOneEnvFile(t *testing.T) {
 	}
 }
 
+// The surmado review of dkoosis/ferret#173: the hyperfine download had no
+// pinned checksum, no curl timeout, and mismatched libc (musl on amd64, glibc
+// on arm64) with no explanation.
+func TestHyperfineDownloadIsCheckedAndBounded(t *testing.T) {
+	files, err := sandbox.Files()
+	if err != nil {
+		t.Fatalf("Files: %v", err)
+	}
+	mk := string(files["Makefile.cross.mk"])
+
+	if !strings.Contains(mk, "HYPERFINE_SHA256_AMD64") || !strings.Contains(mk, "HYPERFINE_SHA256_ARM64") {
+		t.Error("Makefile.cross.mk does not pin a HYPERFINE_SHA256 per architecture")
+	}
+	if !strings.Contains(mk, "sha256 mismatch") {
+		t.Error("Makefile.cross.mk does not fail the hyperfine download on a checksum mismatch")
+	}
+
+	hfIdx := strings.Index(mk, "hyperfine)")
+	if hfIdx < 0 {
+		t.Fatal("Makefile.cross.mk has no hyperfine case block")
+	}
+	hfBlock := mk[hfIdx:]
+	if !strings.Contains(hfBlock, "--connect-timeout") || !strings.Contains(hfBlock, "--max-time") {
+		t.Error("hyperfine's curl call is missing --connect-timeout/--max-time")
+	}
+
+	// amd64 stays musl; arm64 must either match musl too, or the file must say
+	// why not (hyperfine ships no aarch64-unknown-linux-musl release).
+	if strings.Contains(hfBlock, `arm64) HF_TRIPLE="aarch64-unknown-linux-gnu"`) &&
+		!strings.Contains(mk, "aarch64-unknown-linux-musl") {
+		t.Error("hyperfine arm64 is not musl, and the file does not say why not")
+	}
+}
+
 func TestSyncWritesThenReportsNoChange(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, sandbox.LibDir), 0o755); err != nil {
