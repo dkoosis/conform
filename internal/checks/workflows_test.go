@@ -136,6 +136,35 @@ jobs:
         run: make check
 `
 
+// hardcodedDetectYML (cfm-31t): a detect job that carries the canonical
+// docs-only regex but never wires its match result to the output it writes —
+// run_check is a fixed "false" literal, so a non-docs change can never flip
+// the gate on.
+const hardcodedDetectYML = `name: check
+on:
+  pull_request:
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      run_check: ${{ steps.diff.outputs.run_check }}
+    steps:
+      - id: diff
+        run: |
+          git diff --name-status "$base" "$head" | awk -F'\t' '
+            $2 !~ /(\.md$|^docs\/|^\.beads\/|^\.claude\/|^\.gitignore$|^LICENSE$)/ { print "true"; exit }
+          '
+          echo "run_check=false" >> "$GITHUB_OUTPUT"
+  check:
+    needs: detect
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: check
+        if: needs.detect.outputs.run_check == 'true'
+        run: make check
+`
+
 func TestCIDocsSkip(t *testing.T) {
 	t.Parallel()
 
@@ -189,6 +218,29 @@ func TestCIDocsSkip(t *testing.T) {
 		{
 			name: "narrowing: detect ignores a subset of conform-to-sdlc's docs set",
 			yml:  strings.Replace(goodCheckYML, canonical, `(\.md$|^docs\/)`, 1),
+		},
+		{
+			// cfm-31t: the gate step's condition is a literal, never naming
+			// detect's output — the finding must name the gate job so dk
+			// knows which step to fix.
+			name:    "gate step condition is a literal, not detect's output",
+			yml:     strings.Replace(goodCheckYML, "if: needs.detect.outputs.run_check == 'true'", "if: false", 1),
+			wantMsg: `job "check"`,
+		},
+		{
+			// cfm-31t: the gate job never declares needs: detect, so its if
+			// condition (however it reads) can never resolve.
+			name:    "gate job carries no needs: detect",
+			yml:     strings.Replace(goodCheckYML, "  check:\n    needs: detect\n", "  check:\n", 1),
+			wantMsg: `job "check"`,
+		},
+		{
+			// cfm-31t: detect's regex is present and canonical, but the
+			// output it writes never varies with the match — a non-docs
+			// change can never flip run_check true.
+			name:    "detect job hard-codes run_check regardless of the diff",
+			yml:     hardcodedDetectYML,
+			wantMsg: "never varies with the diff",
 		},
 	}
 
