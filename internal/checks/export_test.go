@@ -10,6 +10,7 @@ var (
 	CheckLintFloor    = checkLintFloor
 	CheckLintPin      = checkLintPin
 	CheckCIGate       = checkCIGate
+	CheckCIDocsSkip   = checkCIDocsSkip
 	CheckCodexShape   = checkCodexShape
 	CheckRetiredFiles = checkRetiredFiles
 	CheckBDConfig     = checkBDConfig

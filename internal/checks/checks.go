@@ -59,6 +59,7 @@ const (
 	RuleRootMinimal  = "root-minimal"      // no CLAUDE.md / ROADMAP.md / conform.json / NORTH_STAR.md at the root
 	RuleSandboxLib   = "sandbox-lib"       // .sandbox/lib matches the canonical copy conform ships
 	RuleAgentsStub   = "agents-stub"       // root AGENTS.md stays a pointer, never content
+	RuleCIDocsSkip   = "ci-docs-skip"      // a detect job lets a docs-only PR skip make check, context kept
 )
 
 // Finding is one contract violation: which file, which rule, what to run.
@@ -83,6 +84,7 @@ func Run(dir string) []Finding {
 	findings = append(findings, checkLintFloor(dir)...)
 	findings = append(findings, checkLintPin(dir)...)
 	findings = append(findings, checkCIGate(dir)...)
+	findings = append(findings, checkCIDocsSkip(dir)...)
 	findings = append(findings, checkCodexShape(dir)...)
 	findings = append(findings, checkRetiredFiles(dir)...)
 	findings = append(findings, checkBDConfig(dir)...)

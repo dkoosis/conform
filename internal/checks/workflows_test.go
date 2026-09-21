@@ -1,8 +1,11 @@
 package checks_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dkoosis/conform/internal/checks"
 )
@@ -118,4 +121,183 @@ func assertOneOrClean(t *testing.T, findings []checks.Finding, rule, wantMsg str
 		}
 	}
 	t.Errorf("no %s finding containing %q in %v", rule, wantMsg, findings)
+}
+
+// noDetectYML is the pre-cfm-ac8 shape: make check runs on every PR, docs or not.
+const noDetectYML = `name: check
+on:
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: check
+        run: make check
+`
+
+func TestCIDocsSkip(t *testing.T) {
+	t.Parallel()
+
+	trixi, err := os.ReadFile("testdata/fixtures/trixi.check.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const canonical = `(\.md$|^docs\/|^\.beads\/|^\.claude\/|^\.gitignore$|^LICENSE$)`
+
+	tests := []struct {
+		name    string
+		yml     string // "" = no file
+		wantMsg string // "" = expect clean
+	}{
+		{
+			name: "conforming: detect job guards make check",
+			yml:  goodCheckYML,
+		},
+		{
+			name: "trixi's check.yml shape",
+			yml:  string(trixi),
+		},
+		{
+			name: "absent workflow is ci-gate's finding, not this rule's",
+		},
+		{
+			name:    "no docs-only detect job",
+			yml:     noDetectYML,
+			wantMsg: "no job decides docs-only",
+		},
+		{
+			name:    "paths-ignore on the gate workflow",
+			yml:     strings.Replace(goodCheckYML, "  pull_request:\n", "  pull_request:\n    paths-ignore: ['**.md']\n", 1),
+			wantMsg: "paths-ignore",
+		},
+		{
+			name:    "paths on the gate workflow",
+			yml:     strings.Replace(goodCheckYML, "  pull_request:\n", "  pull_request:\n    paths: ['**.go']\n", 1),
+			wantMsg: "paths",
+		},
+		{
+			name:    "detect job exists but make check is unguarded",
+			yml:     strings.Replace(goodCheckYML, "        if: needs.detect.outputs.run_check == 'true'\n", "", 1),
+			wantMsg: "no job decides docs-only",
+		},
+		{
+			name:    "widening: detect ignores a path outside conform's docs set",
+			yml:     strings.Replace(goodCheckYML, canonical, `(\.md$|^docs\/|^scripts\/)`, 1),
+			wantMsg: "widens",
+		},
+		{
+			name: "narrowing: detect ignores a subset of conform's docs set",
+			yml:  strings.Replace(goodCheckYML, canonical, `(\.md$|^docs\/)`, 1),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			files := map[string]string{}
+			if tt.yml != "" {
+				files[".github/workflows/check.yml"] = tt.yml
+			}
+			dir := writeRepo(t, files)
+
+			findings := checks.CheckCIDocsSkip(dir)
+			assertOneOrClean(t, findings, checks.RuleCIDocsSkip, tt.wantMsg)
+			for _, f := range findings {
+				if f.File != ".github/workflows/check.yml" {
+					t.Errorf("finding names %q, want the workflow file", f.File)
+				}
+			}
+		})
+	}
+}
+
+// TestRun_NoDetectJobFails: the full runner (what `conform` exits on) carries
+// the finding, rendered with file, rule and repair.
+func TestRun_NoDetectJobFails(t *testing.T) {
+	t.Parallel()
+	files := goodRepo()
+	files[".github/workflows/check.yml"] = noDetectYML
+	dir := writeRepo(t, files)
+
+	var hit *checks.Finding
+	for _, f := range checks.Run(dir) {
+		if f.Rule == checks.RuleCIDocsSkip {
+			hit = &f
+			break
+		}
+	}
+	if hit == nil {
+		t.Fatal("Run reported no ci-docs-skip finding for a workflow with no detect job")
+	}
+	s := hit.String()
+	for _, want := range []string{".github/workflows/check.yml", checks.RuleCIDocsSkip, "conform --fix"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("finding %q lacks %q", s, want)
+		}
+	}
+}
+
+// TestFix_WritesCheckWorkflowWithDetectJob: --fix creates an absent workflow
+// that passes this rule, and never rewrites an existing one.
+func TestFix_WritesCheckWorkflowWithDetectJob(t *testing.T) {
+	t.Parallel()
+	files := goodRepo()
+	delete(files, ".github/workflows/check.yml")
+	dir := writeRepo(t, files)
+
+	done, err := checks.Fix(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !anyContains(done, ".github/workflows/check.yml") {
+		t.Fatalf("Fix reported no check.yml action: %+v", done)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, ".github", "workflows", "check.yml"))
+	if err != nil {
+		t.Fatalf("Fix wrote no workflow: %v", err)
+	}
+	if !strings.Contains(string(body), "detect:") {
+		t.Errorf("written workflow carries no detect job:\n%s", body)
+	}
+	if got := checks.CheckCIDocsSkip(dir); len(got) != 0 {
+		t.Errorf("the --fix workflow fails ci-docs-skip: %+v", got)
+	}
+	if got := checks.CheckCIGate(dir); len(got) != 0 {
+		t.Errorf("the --fix workflow fails ci-gate: %+v", got)
+	}
+}
+
+func TestFix_LeavesExistingCheckWorkflowBytes(t *testing.T) {
+	t.Parallel()
+	files := goodRepo()
+	files[".github/workflows/check.yml"] = noDetectYML
+	dir := writeRepo(t, files)
+
+	if _, err := checks.Fix(dir); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, ".github", "workflows", "check.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != noDetectYML {
+		t.Errorf("Fix rewrote an existing workflow:\n%s", body)
+	}
+}
+
+// TestCIDocsSkip_Budget: the rule sits on the in-check surface, <1s.
+func TestCIDocsSkip_Budget(t *testing.T) {
+	trixi, err := os.ReadFile("testdata/fixtures/trixi.check.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := writeRepo(t, map[string]string{".github/workflows/check.yml": string(trixi)})
+
+	start := time.Now()
+	checks.CheckCIDocsSkip(dir)
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("ci-docs-skip took %v, budget is 1s", d)
+	}
 }

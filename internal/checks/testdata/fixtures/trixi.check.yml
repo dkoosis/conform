@@ -1,0 +1,248 @@
+name: check
+
+# GitHub-hosted runners (replaces the self-hosted `trixi-mini` box, which wedged
+# CI on a runner-local phantom: `scripts/lint-locked: line 66: File: unbound
+# variable` from a divergent checked-out script + a missing `gh`. A fresh hosted
+# checkout runs the repo's real scripts, so that phantom can't recur).
+#
+# Cost shape (private repo — macOS bills at 10x Linux minutes):
+#   pull_request       : ubuntu-latest only          — fast, cheap gate on every PR
+#   push -> main       : ubuntu-latest only           — catches the `--admin`
+#                        squash-merge bypass (where the PR check wasn't a required
+#                        status) on the cheap Linux gate.
+#   schedule / dispatch: ubuntu-latest + macos-latest — the darwin gate runs once
+#                        nightly (and on demand), NOT on every merge. TRADE: a
+#                        darwin-only break is caught the next morning, not at
+#                        merge — acceptable, reversible (trixi-ntss). macOS at 10x
+#                        on every push was the dominant CI cost.
+#
+# Docs-only mergeability: branch protection requires the `check (ubuntu-latest)`
+# context and enforce_admins blocks override, so a path-filtered workflow that
+# *skips* never reports that context — a docs-only PR could then never merge.
+# Rather than `paths-ignore` (which drops the required context), the workflow
+# ALWAYS runs: the `detect` job decides whether the diff touches anything but
+# docs/config, and the `check` job fast-skips its real steps when it doesn't —
+# still reporting a green `check (ubuntu-latest)`. One context, one decision: a
+# mixed PR (a .md *and* a .go file) resolves run_check=true and runs the full
+# gate, so code can never slip through behind a docs no-op.
+on:
+  # `labeled` so adding `ci:macos` to an already-open PR re-fires the gate and
+  # the matrix picks up the darwin leg (default PR types don't include labeling).
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  push:
+    branches: [main]
+  # Weekly darwin backstop (Mon 07:00 UTC ≈ 02–03 ET) + manual trigger. macOS
+  # joins the matrix on these events, OR on a PR carrying the `ci:macos` label —
+  # see the `check` job's matrix expression. dk develops on macOS locally, so the
+  # routine darwin coverage is his machine; this weekly run + the high-bar label
+  # only catch darwin-divergent breakage in PRs he won't run himself first.
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Decide whether the diff contains anything the real gate must inspect.
+  # Ignored set (mirrors the former paths-ignore): markdown, docs/, .beads/,
+  # .claude/, .gitignore, LICENSE. Anything else → run the full gate.
+  #
+  # Subset CI was RETIRED in the single-module collapse (trixi-module-collapse):
+  # scripts/changed-modules governed per-module test scoping that no longer
+  # exists now that everything is one module. `make check` always runs the full
+  # `./...` gate; the diff step below only decides docs-only fast-skip.
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      run_check: ${{ steps.diff.outputs.run_check }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
+          else
+            base="${{ github.event.before }}"
+            head="${{ github.sha }}"
+          fi
+          # New branch / unknown base (all-zero SHA or unfetched) → run the gate.
+          if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            echo "base $base unavailable — running full check" >&2
+            echo "run_check=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # --no-renames splits a rename into D(old)+A(new) so every line is a
+          # single `<status>\t<path>` — no two-path rename form to parse.
+          files="$(git diff --name-status --no-renames "$base" "$head")"
+          echo "changed files:" >&2
+          printf '%s\n' "$files" >&2
+          # run_check=true when the diff can change any gate's verdict:
+          #   1. any file outside the docs/config ignore set, OR
+          #   2. a STRUCTURAL change (add/delete/type-change — anything but a
+          #      content modify) to an ignored file outside docs/. treecheck's
+          #      TestMarkdownPlacement (a new/moved *.md at a disallowed path, e.g.
+          #      a root NORTH_STAR.md) and TestRootAllowlist (a root entry added,
+          #      or a deleted file left stale in the allowlist) key off the tracked
+          #      path SET, not content — so a docs-only diff can still break them.
+          #      docs/ is an allowed, non-root prefix, so adds/renames within it
+          #      stay skippable; a content modify (M) never changes the path set.
+          run_check="$(printf '%s\n' "$files" | awk -F'\t' '
+            NF < 2 { next }
+            $2 !~ /(\.md$|^docs\/|^\.beads\/|^\.claude\/|^\.gitignore$|^LICENSE$)/ { print "true"; exit }
+            $1 != "M" && $2 !~ /^docs\// { print "true"; exit }
+          ')"
+          [ -z "$run_check" ] && run_check=false
+          echo "run_check=$run_check" >> "$GITHUB_OUTPUT"
+
+  check:
+    needs: detect
+    # macОS is the 10x-billed leg (trixi-ntss), so it runs only where it earns
+    # its keep:
+    #   - schedule / workflow_dispatch → macOS-ONLY. The weekly darwin backstop;
+    #     ubuntu is skipped here because every PR + push-to-main already runs the
+    #     full ubuntu gate, so a weekly ubuntu re-run is pure redundancy.
+    #   - PR labeled `ci:macos` → ubuntu + macOS. On-demand darwin proof for a PR
+    #     touching OS-divergent surface (high bar — see .claude/rules/ci-on-demand.md).
+    #   - everything else (normal PR / push) → ubuntu-only.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && fromJSON('["macos-latest"]') || (contains(github.event.pull_request.labels.*.name, 'ci:macos') && fromJSON('["ubuntu-latest", "macos-latest"]') || fromJSON('["ubuntu-latest"]')) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - name: docs-only — skip the gate
+        if: needs.detect.outputs.run_check != 'true'
+        run: echo "Only docs/config changed — reporting check (ubuntu-latest) without running the full gate."
+
+      - uses: actions/checkout@v4
+        if: needs.detect.outputs.run_check == 'true'
+        with:
+          # Full history: git-describe (VERSION) and the wt-* shell tests walk
+          # real commit/branch state.
+          fetch-depth: 0
+
+      # Fixed, OS-independent cache locations so the same actions/cache paths work
+      # across the ubuntu/macos matrix (default GOCACHE differs per OS). Must be
+      # under RUNNER_TEMP, NOT github.workspace: the workspace is the checked-out
+      # repo tree, and GOMODCACHE there drops hundreds of dependency *.md files
+      # into it that treecheck's TestMarkdownPlacement flags as misplaced.
+      # RUNNER_TEMP is OS-provided scratch OUTSIDE the checkout. Set via
+      # $GITHUB_ENV (a step) because the `runner` context is unavailable in a
+      # job-level `env:` block — only github/needs/strategy/matrix/vars/inputs are.
+      - name: set Go cache paths
+        if: needs.detect.outputs.run_check == 'true'
+        run: |
+          echo "GOCACHE=$RUNNER_TEMP/.gocache" >> "$GITHUB_ENV"
+          echo "GOMODCACHE=$RUNNER_TEMP/.gomodcache" >> "$GITHUB_ENV"
+          # golangci-lint keeps its OWN incremental analysis cache, separate from
+          # GOCACHE. Unset, it defaults to $HOME/.cache/golangci-lint — outside the
+          # cached paths below, so every run re-analyzed from cold (the lint leg's
+          # dominant cost). Pin it under RUNNER_TEMP so the cache step persists it.
+          echo "GOLANGCI_LINT_CACHE=$RUNNER_TEMP/.golangci-cache" >> "$GITHUB_ENV"
+          # Lint-tool binaries land here (go install honors GOBIN). A dedicated dir
+          # under RUNNER_TEMP lets the version-keyed cache below skip the rebuild.
+          echo "GOBIN=$RUNNER_TEMP/.gobin" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/.gobin" >> "$GITHUB_PATH"
+          # Tool versions: ONE pin location, .sandbox/project.conf (conform
+          # lint-pin). Exported to env so the cache key and install step below
+          # read the same values — no literals in this file.
+          source .sandbox/project.conf
+          echo "GOLANGCI_LINT_VERSION=$GOLANGCI_LINT_VERSION" >> "$GITHUB_ENV"
+          echo "FO_VERSION=$FO_VERSION" >> "$GITHUB_ENV"
+
+      # Private-module access: github.com/dkoosis/keyring is a private repo, so
+      # module fetches must bypass the public proxy (GOPRIVATE) and authenticate
+      # git over https with DKOOSIS_MODULES_TOKEN (fine-grained PAT, read-only
+      # Contents on dkoosis/keyring). Until dk adds that repo secret, this step
+      # writes an empty token and the module fetch — and therefore this check —
+      # stays red.
+      - name: configure access to private dkoosis modules
+        if: needs.detect.outputs.run_check == 'true'
+        env:
+          DKOOSIS_MODULES_TOKEN: ${{ secrets.DKOOSIS_MODULES_TOKEN }}
+        run: |
+          echo "GOPRIVATE=github.com/dkoosis/*" >> "$GITHUB_ENV"
+          git config --global url."https://x-access-token:${DKOOSIS_MODULES_TOKEN}@github.com/dkoosis/".insteadOf "https://github.com/dkoosis/"
+
+      - uses: actions/setup-go@v5
+        if: needs.detect.outputs.run_check == 'true'
+        with:
+          go-version: '1.26.5'
+          # Disable setup-go's built-in cache: it keys on go.sum only and saves
+          # on cache-MISS, so the build/test cache freezes at the last go.sum
+          # change and decays. The rolling actions/cache below replaces it.
+          cache: false
+
+      # Rolling Go build+module+lint cache. The key is suffixed with github.run_id
+      # so it NEVER exact-hits — every run saves a fresh cache — while restore-keys
+      # restores the most recent prior cache (go.sum-scoped, then OS-scoped). The
+      # build cache thus stays warm across runs: Go's content+toolchain-addressed
+      # test cache then re-runs only the packages whose inputs actually changed,
+      # so a one-file PR doesn't recompile/retest all modules. golangci-lint's own
+      # analysis cache rides along for the same reason — its content-addressed
+      # entries let a warm run re-lint only changed packages. Safe by
+      # construction — a stale cache (Go's or golangci's) can only MISS, never
+      # produce a false pass.
+      - name: cache Go build+modules+lint
+        if: needs.detect.outputs.run_check == 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/.gocache
+            ${{ runner.temp }}/.gomodcache
+            ${{ runner.temp }}/.golangci-cache
+          key: ${{ runner.os }}-gobuild-${{ hashFiles('**/go.sum') }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-gobuild-${{ hashFiles('**/go.sum') }}-
+            ${{ runner.os }}-gobuild-
+
+      # Lint-tool binaries are deterministic by pinned version, so cache them on a
+      # version-keyed entry: a cache hit skips the from-source `go install` below
+      # (~13s/run). The key derives from .sandbox/project.conf (exported to env
+      # in the cache-paths step), so a pin bump rolls the key automatically.
+      - name: cache lint tool binaries
+        if: needs.detect.outputs.run_check == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/.gobin
+          key: ${{ runner.os }}-gotools-glci${{ env.GOLANGCI_LINT_VERSION }}-fo${{ env.FO_VERSION }}
+
+      # Lint tools: versions come from .sandbox/project.conf (the ONE pin
+      # location, conform lint-pin; trixi-xaps is why fo is pinned, not @latest
+      # — make check depends on `fo wrap diag`, released in v0.2.3). `go
+      # install` builds them on whichever OS the matrix leg runs (no vendored
+      # darwin binaries exist) into GOBIN (set above, already on PATH). Each
+      # install is skipped when the version-keyed cache restored the binary.
+      - name: install lint tools
+        if: needs.detect.outputs.run_check == 'true'
+        run: |
+          [ -x "$GOBIN/golangci-lint" ] || go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$GOLANGCI_LINT_VERSION"
+          [ -x "$GOBIN/fo" ]            || go install "github.com/dkoosis/fo/cmd/fo@$FO_VERSION"
+
+      # Single-module collapse: `make check` runs the full ./... gate
+      # (vet/lint/test/treecheck/build + the script-based checks). The former
+      # per-module MODULES subset override was retired with changed-modules.
+      - name: make check
+        if: needs.detect.outputs.run_check == 'true'
+        run: make check
+
+      # The -race gate (epic ccp-sbp.4): `make check` runs tests with the cache
+      # ON and WITHOUT the race detector (race lives in `make audit`, unrun in
+      # CI). This step is the missing machine that catches the concurrency-
+      # lifecycle defect class. The definition lives in the Makefile (conform
+      # ci-gate: no gate re-implemented in YAML); race-ci is the hermetic plain
+      # `./...` leg, without the integration tags `make race` pulls in.
+      - name: test (race)
+        if: needs.detect.outputs.run_check == 'true'
+        run: make race-ci
