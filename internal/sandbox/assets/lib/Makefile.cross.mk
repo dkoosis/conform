@@ -14,6 +14,8 @@ GOVULNCHECK_VER   ?= v1.1.4
 GOFUMPT_VER       ?= v0.9.2
 GOIMPORTS_VER     ?= v0.39.0
 MAGE_VER          ?= v1.15.0
+# nilaway publishes no tags; the pin is a pseudo-version.
+NILAWAY_VER       ?= v0.0.0-20260808063849-8649a03c818a
 BAT_VER           ?= v0.25.0
 HYPERFINE_VER     ?= v1.20.0
 # Pinned per architecture and checked after download (surmado review of
@@ -169,6 +171,9 @@ _cross-build:
 		mage) \
 			echo "-- mage $(MAGE_VER)"; \
 			xtool_build github.com/magefile/mage $(MAGE_VER) mage ;; \
+		nilaway) \
+			echo "-- nilaway $(NILAWAY_VER)"; \
+			xtool_build go.uber.org/nilaway/cmd/nilaway $(NILAWAY_VER) nilaway ;; \
 		dtree) \
 			echo "-- dtree (manually-managed shell script — no version pin or build-from-source)"; \
 			if [ -f ".sandbox/codex/dtree" ]; then \
