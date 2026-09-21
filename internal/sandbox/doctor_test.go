@@ -84,20 +84,33 @@ func TestRestoreRemovesAToolThatAnswersNoProbe(t *testing.T) {
 	}
 }
 
-// A container cached at an older commit keeps that commit's tools; dropping
-// the ones that differ from the committed prebuilt lets restore reinstall them.
-func TestDropStaleRemovesOnlyDifferingTools(t *testing.T) {
+// A container cached at an older commit keeps that commit's tools. The refresh
+// overwrites the ones that differ from the committed prebuilt, by copy and with
+// no version probe: dtree is a shell script and answers none, and a tool that
+// fails a probe must not be deleted for it.
+func TestRefreshStaleOverwritesADifferingToolWithoutProbing(t *testing.T) {
 	answers := func(v string) string { return `case "$1" in --version) echo ` + v + `; exit 0;; esac; exit 2` }
 	out := runDoctor(t,
-		map[string]string{"old": answers("new"), "same": answers("same")},
-		map[string]string{"old": answers("old"), "same": answers("same")},
-		`drop_stale_sandbox_binaries >/dev/null
-		[ -e "$INSTALL_DIR/old" ] && echo "old present" || echo "old gone"
-		[ -e "$INSTALL_DIR/same" ] && echo "same present" || echo "same gone"`)
-	if !strings.Contains(out, "old gone") {
-		t.Errorf("a differing tool was not dropped:\n%s", out)
+		map[string]string{"old": answers("new"), "noprobe": "exit 2", "same": answers("same")},
+		map[string]string{"old": answers("old"), "noprobe": "echo stale; exit 2", "same": answers("same")},
+		`touch -t 202001010000 "$INSTALL_DIR/same"
+		refresh_stale_sandbox_binaries >/dev/null
+		cmp -s "$PREBUILT_DIR/old" "$INSTALL_DIR/old" && [ -x "$INSTALL_DIR/old" ] && echo "old refreshed"
+		cmp -s "$PREBUILT_DIR/noprobe" "$INSTALL_DIR/noprobe" && [ -x "$INSTALL_DIR/noprobe" ] && echo "noprobe refreshed"
+		[ -n "$(find "$INSTALL_DIR/same" -mtime +1)" ] && echo "same untouched"`)
+	for _, want := range []string{"old refreshed", "noprobe refreshed", "same untouched"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
 	}
-	if !strings.Contains(out, "same present") {
-		t.Errorf("an identical tool was dropped:\n%s", out)
+}
+
+func TestLibraryCarriesNoDropStaleFunction(t *testing.T) {
+	files, err := sandbox.Files()
+	if err != nil {
+		t.Fatalf("Files: %v", err)
+	}
+	if strings.Contains(string(files["lib-doctor.sh"]), "drop_stale_sandbox_binaries") {
+		t.Error("lib-doctor.sh still defines drop_stale_sandbox_binaries; it is refresh_stale_sandbox_binaries")
 	}
 }

@@ -68,18 +68,20 @@ tool_runs() {
   "$1" --version >/dev/null 2>&1 || "$1" -V=full >/dev/null 2>&1 || "$1" version >/dev/null 2>&1
 }
 
-# Repair: remove installed tools that differ from the committed prebuilt, so
-# restore_sandbox_binaries reinstalls them. A container cached at an older
-# commit keeps that commit's tools until this runs.
-drop_stale_sandbox_binaries() {
+# Repair: overwrite installed tools that differ from the committed prebuilt. A
+# container cached at an older commit keeps that commit's tools until this runs.
+# It copies straight into $INSTALL_DIR and probes nothing: dtree is a shell
+# script and answers no version probe, and a tool must not be deleted for that.
+refresh_stale_sandbox_binaries() {
   [ -d "$PREBUILT_DIR" ] || return 0
   for tool in "$PREBUILT_DIR"/*; do
     [ -f "$tool" ] || continue
     local toolname
     toolname=$(basename "$tool")
     if [ -f "$INSTALL_DIR/$toolname" ] && ! cmp -s "$tool" "$INSTALL_DIR/$toolname"; then
-      rm -f "$INSTALL_DIR/$toolname"
-      echo "  $toolname differs from the committed prebuilt, reinstalling"
+      cp -f "$tool" "$INSTALL_DIR/$toolname"
+      chmod +x "$INSTALL_DIR/$toolname"
+      echo "  $toolname differs from the committed prebuilt, refreshed"
     fi
   done
   return 0
