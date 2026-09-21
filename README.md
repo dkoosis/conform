@@ -1,5 +1,7 @@
 # conform-to-sdlc
 
+★ One program, pinned in every dkoosis Go repo, fails `make check` when that repo's setup — Makefile targets, lint rules, CI workflow, git hooks, bd config, GitHub settings — drifts from the fleet standard, and names the command that puts it back.
+
 Fleet SDLC conformance checker for the dkoosis repos. One contract — same
 Makefile verbs, lint core, CI shape, hooks, bd config, GitHub settings — checked
 instead of copied, so improvements propagate as pin bumps and templates can't
