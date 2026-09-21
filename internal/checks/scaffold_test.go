@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dkoosis/conform/internal/values"
+	"github.com/dkoosis/conform-to-sdlc/internal/values"
 )
 
 func testSpec() ScaffoldSpec {
@@ -22,7 +22,7 @@ func testSpec() ScaffoldSpec {
 }
 
 // TestScaffoldPassesChecker is the bead's acceptance criterion: a scaffolded
-// repo passes conform unedited, on both profiles.
+// repo passes conform-to-sdlc unedited, on both profiles.
 func TestScaffoldPassesChecker(t *testing.T) {
 	for _, profile := range []values.Profile{values.ProfileTool, values.ProfileLib} {
 		t.Run(string(profile), func(t *testing.T) {
@@ -183,7 +183,7 @@ func TestScaffoldRejectsBadSpec(t *testing.T) {
 }
 
 // TestScaffoldSpecDefaults: the spec fills its own blanks from the repo
-// name, so `conform init <repo>` is enough.
+// name, so `conform-to-sdlc init <repo>` is enough.
 func TestScaffoldSpecDefaults(t *testing.T) {
 	spec := ScaffoldSpec{Repo: "widget"}
 	spec.applyDefaults()

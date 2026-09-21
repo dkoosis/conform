@@ -3,7 +3,7 @@ package values_test
 import (
 	"testing"
 
-	"github.com/dkoosis/conform/internal/values"
+	"github.com/dkoosis/conform-to-sdlc/internal/values"
 )
 
 func TestDefaultFleet(t *testing.T) {
@@ -23,8 +23,8 @@ func TestDefaultFleet(t *testing.T) {
 		t.Error("fleet roster does not contain ferret")
 	}
 
-	if _, ok := byName["conform"]; !ok {
-		t.Error("fleet roster does not contain conform")
+	if _, ok := byName["conform-to-sdlc"]; !ok {
+		t.Error("fleet roster does not contain conform-to-sdlc")
 	}
 
 	if _, ok := byName["cc-plugins"]; ok {

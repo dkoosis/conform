@@ -1,6 +1,6 @@
 .DS_Store
-# built binary (was /ferret, copied from the reference repo — this repo builds /conform)
-/conform
+# built binary (was /ferret, copied from the reference repo — this repo builds /conform-to-sdlc)
+/conform-to-sdlc
 
 # Sandbox: cache + transient artifacts (prebuilt binaries are tracked in .sandbox/bin/)
 .sandbox/cache/

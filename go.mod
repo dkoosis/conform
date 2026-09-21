@@ -1,4 +1,4 @@
-module github.com/dkoosis/conform
+module github.com/dkoosis/conform-to-sdlc
 
 go 1.26.3
 

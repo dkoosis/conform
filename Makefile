@@ -1,4 +1,4 @@
-# conform Makefile — strict QA gates, fleet pattern (reference: ~/Projects/ferret).
+# conform-to-sdlc Makefile — strict QA gates, fleet pattern (reference: ~/Projects/ferret).
 #
 # Primary: check (vet+lint+test+build) | audit (check+race+vuln+dupe+nilcheck)
 
@@ -19,7 +19,7 @@ include .sandbox/lib/Makefile.cross.mk
 # waiting, which cascades across parallel sessions/worktrees).
 GOLANGCILINT := bash scripts/lint-locked
 
-# 12-char rev stamped into the binary at install time; `conform version`
+# 12-char rev stamped into the binary at install time; `conform-to-sdlc version`
 # prints it. A plain `go build` with no ldflags leaves main.version at its
 # "unknown" default.
 VERSION := $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
@@ -35,7 +35,7 @@ help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_.-]+:.*?## / { printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@printf '\n'
 
-check: vet lint test build selfcheck ## Fast validation: vet + lint + test + build + conform on itself
+check: vet lint test build selfcheck ## Fast validation: vet + lint + test + build + conform-to-sdlc on itself
 	@echo "=== check pass ==="
 
 audit: check race vuln dupe nilcheck ## Exhaustive validation
@@ -57,17 +57,17 @@ race: ## Run tests with race detector (fresh run)
 build: ## Compile everything
 	go build ./...
 
-# Dogfood (cfm-1e1.7): conform is fleet repo #14 and gates itself, or it is
+# Dogfood (cfm-1e1.7): conform-to-sdlc is fleet repo #14 and gates itself, or it is
 # the unwatched watcher — the exact L4 failure it exists to kill.
-selfcheck: ## Run conform against this repo (dogfood gate)
-	go run ./cmd/conform
+selfcheck: ## Run conform-to-sdlc against this repo (dogfood gate)
+	go run ./cmd/conform-to-sdlc
 
 # doctor's core steps come from .sandbox/lib/Makefile.doctor.mk (shared,
-# byte-identical fleet-wide); wiring conform --local in as an extra prereq
+# byte-identical fleet-wide); wiring conform-to-sdlc --local in as an extra prereq
 # keeps the lib untouched (cfm-1e1.3).
-doctor: selfcheck-local ## Machine doctor (sandbox lib) + conform --local
-selfcheck-local: ## Run conform --local (machine wiring: hooksPath, bd hooks, live bd config)
-	go run ./cmd/conform --local
+doctor: selfcheck-local ## Machine doctor (sandbox lib) + conform-to-sdlc --local
+selfcheck-local: ## Run conform-to-sdlc --local (machine wiring: hooksPath, bd hooks, live bd config)
+	go run ./cmd/conform-to-sdlc --local
 
 vuln: ## Scan for known vulnerabilities
 	govulncheck ./...
@@ -82,18 +82,18 @@ nilcheck: ## Run nilaway (skips if not installed)
 		echo "nilcheck: nilaway not installed — skipping (install: go install go.uber.org/nilaway/cmd/nilaway@latest)"; \
 		exit 0; \
 	fi
-	nilaway -include-pkgs=github.com/dkoosis/conform ./...
+	nilaway -include-pkgs=github.com/dkoosis/conform-to-sdlc ./...
 
 ## doctor target provided by .sandbox/lib/Makefile.doctor.mk (project.conf-driven)
 ## cross / cross-amd64 / cross-arm64 provided by .sandbox/lib/Makefile.cross.mk
 
-install: ## Install conform to GOPATH/bin (version-stamped)
-	go install -ldflags "$(LDFLAGS)" ./cmd/conform
+install: ## Install conform-to-sdlc to GOPATH/bin (version-stamped)
+	go install -ldflags "$(LDFLAGS)" ./cmd/conform-to-sdlc
 
-deploy: build install ## Build, then install conform to GOPATH/bin
-	@echo "=== deployed (conform installed to $$(go env GOPATH)/bin) ==="
+deploy: build install ## Build, then install conform-to-sdlc to GOPATH/bin
+	@echo "=== deployed (conform-to-sdlc installed to $$(go env GOPATH)/bin) ==="
 
 clean: ## Remove built binary + sandbox build artifacts
-	@rm -f conform
+	@rm -f conform-to-sdlc
 	@rm -rf .sandbox/bin/linux-amd64 .sandbox/bin/linux-arm64 .sandbox/cache
 	@echo "=== clean ==="

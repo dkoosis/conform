@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dkoosis/conform/internal/checks"
+	"github.com/dkoosis/conform-to-sdlc/internal/checks"
 )
 
 // stubAgents is the permitted body, copied from home/rules/standard-sdlc.md.
@@ -134,7 +134,7 @@ func TestAgentsStub_CapStaysAPointerSizedNumber(t *testing.T) {
 
 // TestRun_LardedAgentsFailsTheGate: the rule is wired into Run, not just
 // reachable from a test hook. Without this the check could pass its own unit
-// cases while conform stayed green on a larded repo.
+// cases while conform-to-sdlc stayed green on a larded repo.
 func TestRun_LardedAgentsFailsTheGate(t *testing.T) {
 	t.Parallel()
 	files := goodRepo()

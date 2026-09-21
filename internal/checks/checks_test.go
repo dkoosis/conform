@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dkoosis/conform/internal/checks"
+	"github.com/dkoosis/conform-to-sdlc/internal/checks"
 )
 
 // TestRun_ConformingRepo: a repo satisfying the whole Surface-1 contract
@@ -91,7 +91,7 @@ func TestRun_ExceptionSuppressesFinding(t *testing.T) {
 //
 // This is the migration's whole risk. Five of seven fleet repos declare at the
 // root, and a cutover that read only docs/conform.json would drop their
-// exceptions the next time conform ran — every rule they had excused firing at
+// exceptions the next time conform-to-sdlc ran — every rule they had excused firing at
 // once, with the one finding that explains why buried among them. Read the
 // root copy, and report it as a root-minimal stray: the repo keeps working and
 // still learns it must move.

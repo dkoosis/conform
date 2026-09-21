@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dkoosis/conform/internal/checks"
+	"github.com/dkoosis/conform-to-sdlc/internal/checks"
 )
 
 func TestCIGate(t *testing.T) {
@@ -182,12 +182,12 @@ func TestCIDocsSkip(t *testing.T) {
 			wantMsg: "no job decides docs-only",
 		},
 		{
-			name:    "widening: detect ignores a path outside conform's docs set",
+			name:    "widening: detect ignores a path outside conform-to-sdlc's docs set",
 			yml:     strings.Replace(goodCheckYML, canonical, `(\.md$|^docs\/|^scripts\/)`, 1),
 			wantMsg: "widens",
 		},
 		{
-			name: "narrowing: detect ignores a subset of conform's docs set",
+			name: "narrowing: detect ignores a subset of conform-to-sdlc's docs set",
 			yml:  strings.Replace(goodCheckYML, canonical, `(\.md$|^docs\/)`, 1),
 		},
 	}
@@ -213,7 +213,7 @@ func TestCIDocsSkip(t *testing.T) {
 	}
 }
 
-// TestRun_NoDetectJobFails: the full runner (what `conform` exits on) carries
+// TestRun_NoDetectJobFails: the full runner (what `conform-to-sdlc` exits on) carries
 // the finding, rendered with file, rule and repair.
 func TestRun_NoDetectJobFails(t *testing.T) {
 	t.Parallel()
@@ -232,7 +232,7 @@ func TestRun_NoDetectJobFails(t *testing.T) {
 		t.Fatal("Run reported no ci-docs-skip finding for a workflow with no detect job")
 	}
 	s := hit.String()
-	for _, want := range []string{".github/workflows/check.yml", checks.RuleCIDocsSkip, "conform --fix"} {
+	for _, want := range []string{".github/workflows/check.yml", checks.RuleCIDocsSkip, "conform-to-sdlc --fix"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("finding %q lacks %q", s, want)
 		}

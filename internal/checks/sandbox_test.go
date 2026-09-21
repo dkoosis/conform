@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dkoosis/conform/internal/checks"
-	"github.com/dkoosis/conform/internal/sandbox"
+	"github.com/dkoosis/conform-to-sdlc/internal/checks"
+	"github.com/dkoosis/conform-to-sdlc/internal/sandbox"
 )
 
 func sandboxFindings(t *testing.T, dir string) []checks.Finding {

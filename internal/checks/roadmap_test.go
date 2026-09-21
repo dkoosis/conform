@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dkoosis/conform/internal/checks"
+	"github.com/dkoosis/conform-to-sdlc/internal/checks"
 )
 
 // goodRoadmap is the shape the rule demands: a ★ line at the start of a line.
@@ -80,7 +80,7 @@ func TestCheckRoadmap_IndentedStarIsNotTheLine(t *testing.T) {
 // the kg, a repo may carry it as a Publish-To reflection, and decision
 // 9b4cbc91016f settles the name as final. Renaming it away would delete the
 // published copy and orphan the publish target — the next publish re-creates
-// it, and conform would fight the publisher forever.
+// it, and conform-to-sdlc would fight the publisher forever.
 func TestCheckRoadmap_NorthStarIsNeverRenamedAway(t *testing.T) {
 	t.Parallel()
 
@@ -228,7 +228,7 @@ func TestRoadmapRenderers_DifferOnTheStarLine(t *testing.T) {
 
 	scaffold := checks.RoadmapScaffold(repo)
 	if !findsStarLine(scaffold) {
-		t.Error("RoadmapScaffold must satisfy the ★ check — conform init promises a repo that passes unedited")
+		t.Error("RoadmapScaffold must satisfy the ★ check — conform-to-sdlc init promises a repo that passes unedited")
 	}
 	if n := checkRoadmapFindings(t, scaffold); n != 0 {
 		t.Errorf("a repo holding the init page should pass the roadmap rule, got %d finding(s)", n)
