@@ -7,9 +7,10 @@ import (
 	"github.com/dkoosis/conform-to-sdlc/internal/checks"
 )
 
-// stubAgents is the permitted body, copied from home/rules/standard-sdlc.md.
-// It is quoted rather than derived so this test fails loudly if the rule ever
-// starts rejecting the exact text the decision permits.
+// stubAgents is the permitted body, copied from sdlc
+// plugins/sdlc/references/reference-repo-layout.md. It is quoted rather than
+// derived so this test fails loudly if the rule ever starts rejecting the
+// exact text the decision permits.
 const stubAgents = `# Agent Instructions
 
 Project instructions live in ` + "`.claude/rules/`" + ` — every ` + "`*.md`" + ` there, loaded
@@ -70,6 +71,9 @@ func TestAgentsStub_ManagedBlockIsAFinding(t *testing.T) {
 	}
 	if strings.Contains(got[0].Repair, "fold") && !strings.Contains(got[0].Repair, "do not fold") {
 		t.Fatalf("repair must not send the block into .claude/rules/, got %q", got[0].Repair)
+	}
+	if !strings.Contains(got[0].Repair, "reference-repo-layout.md") {
+		t.Fatalf("repair must name the file that quotes the stub, reference-repo-layout.md, got %q", got[0].Repair)
 	}
 }
 
