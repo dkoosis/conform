@@ -107,8 +107,8 @@ _cross-build:
 					arm64) BAT_TRIPLE="aarch64-unknown-linux-gnu" ;; \
 				esac; \
 				TMP=$$(mktemp -d); \
-				curl -fsSL "https://github.com/sharkdp/bat/releases/download/$(BAT_VER)/bat-$(BAT_VER)-$$BAT_TRIPLE.tar.gz" \
-					| tar xz -C "$$TMP" && \
+				curl -fsSL "https://github.com/sharkdp/bat/releases/download/$(BAT_VER)/bat-$(BAT_VER)-$$BAT_TRIPLE.tar.gz" -o "$$TMP/a.tgz" && \
+					tar xz -C "$$TMP" -f "$$TMP/a.tgz" && \
 				cp "$$TMP"/bat-*/bat $(SANDBOX_BIN_DIR)/linux-$(CROSS_ARCH)/bat && \
 				rm -rf "$$TMP"; \
 			fi ;; \
@@ -122,8 +122,8 @@ _cross-build:
 					arm64) HF_TRIPLE="aarch64-unknown-linux-gnu" ;; \
 				esac; \
 				TMP=$$(mktemp -d); \
-				curl -fsSL "https://github.com/sharkdp/hyperfine/releases/download/$(HYPERFINE_VER)/hyperfine-$(HYPERFINE_VER)-$$HF_TRIPLE.tar.gz" \
-					| tar xz -C "$$TMP" && \
+				curl -fsSL "https://github.com/sharkdp/hyperfine/releases/download/$(HYPERFINE_VER)/hyperfine-$(HYPERFINE_VER)-$$HF_TRIPLE.tar.gz" -o "$$TMP/a.tgz" && \
+					tar xz -C "$$TMP" -f "$$TMP/a.tgz" && \
 				cp "$$TMP"/hyperfine-*/hyperfine $(SANDBOX_BIN_DIR)/linux-$(CROSS_ARCH)/hyperfine && \
 				rm -rf "$$TMP"; \
 			fi ;; \
