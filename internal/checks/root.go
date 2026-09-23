@@ -49,8 +49,8 @@ var rootStrays = []struct{ name, msg, repair string }{
 	},
 	{
 		name:   "kg",
-		msg:    "a vault inside the repo — a nug writer defaulted its root to ./kg (trixi set) instead of ~/Projects/kg",
-		repair: "move the nugs under ~/Projects/kg (itzy nug re-files them), rm -r kg, and set TRIXI_KG / use itzy nug",
+		msg:    "a vault inside the repo — a nug writer defaulted its root to ./kg (trixi set) instead of $MNEMD_NUGBASE",
+		repair: "move the nugs into $MNEMD_NUGBASE with mnemd capture or mnemd index, then rm -r kg",
 	},
 }
 

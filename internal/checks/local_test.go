@@ -20,7 +20,7 @@ bd hooks run "$(basename "$0")" "$@"
 
 var hookEvents = []string{"post-checkout", "post-merge", "pre-commit", "pre-push", "prepare-commit-msg"}
 
-// wrapperHook is the itzy#161 shape (cfm-wml): a tracked wrapper that
+// wrapperHook is an alternate shape (cfm-wml): a tracked wrapper that
 // exec-chains to bd's shim instead of carrying the inline managed block.
 const wrapperHook = `#!/usr/bin/env sh
 hook_name="$(basename "$0")"
@@ -95,8 +95,8 @@ func TestRunLocal_ConformingMachine(t *testing.T) {
 	}
 }
 
-// TestRunLocal_DeadWiring: a fresh clone with hooksPath unset — the itzy
-// failure mode — trips hooks-path and review-gate.
+// TestRunLocal_DeadWiring: a fresh clone with hooksPath unset trips
+// hooks-path and review-gate.
 func TestRunLocal_DeadWiring(t *testing.T) {
 	dir := writeRepo(t, localRepo())
 	initGit(t, dir, "")
