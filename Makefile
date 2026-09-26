@@ -12,7 +12,7 @@ SHELL := /bin/bash
 include .sandbox/lib/Makefile.doctor.mk
 include .sandbox/lib/Makefile.cross.mk
 
-.PHONY: help check audit vet lint test race build vuln dupe nilcheck install deploy clean
+.PHONY: help check audit vet lint test race build vuln dupe nilcheck install deploy clean pack-drift
 
 # Serialize golangci-lint through the machine-global mkdir mutex (see script
 # header — golangci-lint's cache lock fails exit-3 on contention instead of
@@ -35,7 +35,7 @@ help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_.-]+:.*?## / { printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@printf '\n'
 
-check: vet lint test build selfcheck ## Fast validation: vet + lint + test + build + conform-to-sdlc on itself
+check: vet lint pack-drift test build selfcheck ## Fast validation: vet + lint + test + build + conform-to-sdlc on itself
 	@echo "=== check pass ==="
 
 audit: check race vuln dupe nilcheck ## Exhaustive validation
@@ -97,3 +97,6 @@ clean: ## Remove built binary + sandbox build artifacts
 	@rm -f conform-to-sdlc
 	@rm -rf .sandbox/bin/linux-amd64 .sandbox/bin/linux-arm64 .sandbox/cache
 	@echo "=== clean ==="
+
+pack-drift: ## Fail if the copied lintbrush pack rules drifted from upstream (network-soft)
+	@.golangci-rules/check-pack-drift.sh

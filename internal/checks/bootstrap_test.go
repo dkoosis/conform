@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -85,7 +86,7 @@ func TestRemoteStepsAreMarkedRemote(t *testing.T) {
 func TestBootstrapPlanCoversEveryFleetLabel(t *testing.T) {
 	old := fleetLabels
 	t.Cleanup(func() { fleetLabels = old })
-	fleetLabels = append(append([]string{}, old...), "sentinel-label")
+	fleetLabels = slices.Concat(old, []string{"sentinel-label"})
 
 	plan := BootstrapPlan(testSpec())
 	for _, want := range fleetLabels {
