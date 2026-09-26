@@ -3,6 +3,7 @@ package checks
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -84,7 +85,7 @@ func TestEmitterDerivesFromCheckerVocabulary(t *testing.T) {
 				t.Helper()
 				old := floorEnable
 				t.Cleanup(func() { floorEnable = old })
-				floorEnable = append(append([]string{}, old...), "sentinellint")
+				floorEnable = slices.Concat(old, []string{"sentinellint"})
 				return "sentinellint"
 			},
 		},
@@ -95,7 +96,7 @@ func TestEmitterDerivesFromCheckerVocabulary(t *testing.T) {
 				t.Helper()
 				old := checkFloor
 				t.Cleanup(func() { checkFloor = old })
-				checkFloor = append(append([]string{}, old...), "sentineltarget")
+				checkFloor = slices.Concat(old, []string{"sentineltarget"})
 				return "sentineltarget"
 			},
 		},
@@ -106,7 +107,7 @@ func TestEmitterDerivesFromCheckerVocabulary(t *testing.T) {
 				t.Helper()
 				old := trackedHookEvents
 				t.Cleanup(func() { trackedHookEvents = old })
-				trackedHookEvents = append(append([]string{}, old...), "sentinel-event")
+				trackedHookEvents = slices.Concat(old, []string{"sentinel-event"})
 				return delegationMarker
 			},
 		},
@@ -117,7 +118,7 @@ func TestEmitterDerivesFromCheckerVocabulary(t *testing.T) {
 				t.Helper()
 				old := bdKeys
 				t.Cleanup(func() { bdKeys = old })
-				bdKeys = append(append([]bdKey{}, old...), bdKey{
+				bdKeys = append(slices.Clone(old), bdKey{
 					key:   "custom.sentinel_key",
 					paths: []string{"custom.sentinel_key"},
 					why:   "sentinel",
